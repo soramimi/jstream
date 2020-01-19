@@ -21,6 +21,7 @@ enum StateType {
 	True,
 	String,
 	Number,
+	SyntaxError,
 };
 
 class Parser {
@@ -218,7 +219,7 @@ public:
 		parse(begin, end);
 	}
 public:
-	Parser(char const *ptr, int len)
+	Parser(char const *ptr, int len = -1)
 	{
 		parse(ptr, len);
 	}
@@ -364,6 +365,9 @@ public:
 					}
 				}
 			}
+			d.states.clear();
+			push_state(SyntaxError);
+			d.string = "jstream: syntax error";
 		}
 		return false;
 	}

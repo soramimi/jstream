@@ -1,17 +1,18 @@
 
 #include "jstream.h"
+#include "test.h"
 
-int main()
+void main2()
 {
-	static char const source[] = R"---(
+	static char const input[] = R"---(
 "fruits": [
-	{"name":"apple","price":150},
-	{"name":"banana","price":80},
-	{"name":"orange","price":52}
+	{ "name": "apple", "price": 150 },
+	{ "name": "banana", "price": 80 },
+	{ "name": "orange", "price": 52 }
 ]
 )---";
 
-	jstream::Parser json(source, source + strlen(source));
+	jstream::Parser json(input);
 	while (json.next()) {
 		switch (json.state()) {
 		case jstream::StartObject:
@@ -39,6 +40,12 @@ int main()
 			break;
 		}
 	}
+}
+
+int main()
+{
+//	main2();
+	test();
 
 	return 0;
 }
