@@ -4,9 +4,8 @@ CONFIG += console c++11
 CONFIG -= app_bundle
 CONFIG -= qt
 
-SOURCES += main.cpp \
-    json.cpp
+SOURCES += main.cpp
 
 HEADERS += \
-    json.h
+	jstream.h
 
