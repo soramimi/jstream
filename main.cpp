@@ -2,14 +2,51 @@
 #include "jstream.h"
 #include "test.h"
 
+struct GoogleAccessToken {
+	std::string access_token;
+	std::string token_type;
+	std::string expires_in;
+	std::string refresh_token;
+	std::string id_token;
+};
+
+void main1()
+{
+	std::string input = R"---(
+{
+"access_token": "qwerty123",
+"expires_in": 3599,
+"scope": "https://www.googleapis.com/auth/userinfo.profile",
+"token_type": "Bearer",
+"id_token": "abcdefg"
+}
+)---";
+
+	GoogleAccessToken out;
+	jstream::Parser json(input.c_str(), input.size());
+	while (json.next()) {
+		if (json.match("{access_token")) {
+			out.access_token = json.string();
+		} else if (json.match("{expires_in")) {
+			out.expires_in = json.string();
+		} else if (json.match("{token_type")) {
+			out.token_type = json.string();
+		} else if (json.match("{id_token")) {
+			out.id_token = json.string();
+		}
+	}
+}
+
 void main2()
 {
 	static char const input[] = R"---(
-"fruits": [
-	{ "name": "apple", "price": 150 },
-	{ "name": "banana", "price": 80 },
-	{ "name": "orange", "price": 52 }
-]
+{
+  "access_token": "qwerty123",
+  "expires_in": 3599,
+  "scope": "https://www.googleapis.com/auth/userinfo.profile",
+  "token_type": "Bearer",
+  "id_token": "abcdefg"
+}
 )---";
 
 	jstream::Parser json(input);
@@ -44,7 +81,7 @@ void main2()
 
 int main()
 {
-//	main2();
+//	main1();
 	test();
 
 	return 0;

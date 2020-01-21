@@ -218,7 +218,6 @@ public:
 	{
 		parse(begin, end);
 	}
-public:
 	Parser(char const *ptr, int len = -1)
 	{
 		parse(ptr, len);
@@ -340,6 +339,7 @@ public:
 			if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
 				auto n = parse_number(d.ptr, d.end, &d.number);
 				if (n > 0) {
+					d.string.assign(d.ptr, n);
 					d.ptr += n;
 					push_state(Number);
 					return true;
@@ -421,6 +421,7 @@ public:
 	}
 	bool match(char const *path) const
 	{
+		if (!isvalue()) return false;
 		for (std::string const &s : d.depth) {
 			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
 			path += s.size();

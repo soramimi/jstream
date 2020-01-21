@@ -159,6 +159,26 @@ EndObject: ""
 EndArray: "fruits"
 				)---");
 
+	TEST(
+				R"---(
+{
+  "access_token": "qwerty123",
+  "expires_in": 3599,
+  "scope": "https://www.googleapis.com/auth/userinfo.profile",
+  "token_type": "Bearer",
+  "id_token": "abcdefg"
+}
+				)---",
+				R"---(
+StartObject: ""
+StringValue: "access_token" = "qwerty123"
+NumberValue: "expires_in" = 3599.000000
+StringValue: "scope" = "https://www.googleapis.com/auth/userinfo.profile"
+StringValue: "token_type" = "Bearer"
+StringValue: "id_token" = "abcdefg"
+EndObject: ""
+				)---");
+
 
 	printf("---\n" "TOTAL: %d\n" " PASS: %d\n" " FAIL: %d\n", total, pass, fail);
 }
