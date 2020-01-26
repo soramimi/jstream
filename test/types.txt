@@ -1,0 +1,21 @@
+{
+	"string": "abc",
+	"number": 123.456789,
+	"null": null,
+	"false": false,
+	"true": true
+}
+---
+StartObject: ""
+StringValue: "string" = "abc"
+NumberValue: "number" = 123.456789
+SymbolValue: "null" = null
+SymbolValue: "false" = false
+SymbolValue: "true" = true
+EndObject: ""
+---
+{string="abc"
+{number=123.456789
+{null=null
+{false=false
+{true=true

@@ -82,7 +82,7 @@ void main2()
 int main()
 {
 //	main1();
-	test();
+	test_all();
 
 	return 0;
 }

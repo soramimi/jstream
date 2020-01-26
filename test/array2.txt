@@ -1,0 +1,22 @@
+{
+	"a": [[ 12, 34 ],[ 56, 78 ]]
+}
+---
+StartObject: ""
+StartArray: "a"
+StartArray: ""
+NumberValue: "" = 12.000000
+NumberValue: "" = 34.000000
+EndArray: ""
+StartArray: ""
+NumberValue: "" = 56.000000
+NumberValue: "" = 78.000000
+EndArray: ""
+EndArray: "a"
+EndObject: ""
+---
+{a[[=12
+{a[[=34
+{a[[=56
+{a[[=78
+

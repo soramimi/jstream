@@ -291,7 +291,7 @@ public:
 			if (*d.ptr == ',') {
 				d.ptr++;
 				d.ptr += scan_space(d.ptr, d.end);
-				if (isvalue()) {
+				if (isobject() || isvalue()) {
 					pop_state();
 				}
 				push_state(Comma);
@@ -377,11 +377,18 @@ public:
 		return d.states.empty() ? None : d.states.back();
 	}
 
-	bool isvalue() const
+	bool isobject() const
 	{
 		switch (state()) {
 		case StartObject:
 		case StartArray:
+			return true;
+		}
+		return false;
+	}
+	bool isvalue() const
+	{
+		switch (state()) {
 		case String:
 		case Number:
 		case Null:
@@ -421,7 +428,7 @@ public:
 	}
 	bool match(char const *path) const
 	{
-		if (!isvalue()) return false;
+		if (!(isobject() || isvalue())) return false;
 		for (std::string const &s : d.depth) {
 			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
 			path += s.size();

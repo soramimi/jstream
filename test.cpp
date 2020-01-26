@@ -1,5 +1,10 @@
 #include "test.h"
 #include "jstream.h"
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <algorithm>
 
 std::string trim(std::string const &s)
 {
@@ -10,9 +15,65 @@ std::string trim(std::string const &s)
 	return s.substr(i, j - i);
 }
 
-std::string parse(char const *source)
+bool read_file(char const *path, std::vector<char> *out)
 {
-	std::string ret;
+	bool ok = false;
+	out->clear();
+	int fd = open(path, O_RDONLY);
+	if (fd != -1) {
+		struct stat st;
+		if (fstat(fd, &st) == 0) {
+			ok = true;
+			if (st.st_size > 0) {
+				out->resize(st.st_size);
+				if (read(fd, out->data(), out->size()) != st.st_size) {
+					ok = false;
+				}
+			}
+		}
+		close(fd);
+	}
+	return ok;
+}
+
+bool parse_test_case(char const *begin, char const *end, std::vector<std::string> *strings)
+{
+	strings->clear();
+	char const *head = begin;
+	char const *ptr = begin;
+	bool newline = true;
+	while (1) {
+		int c = 0;
+		if (ptr < end) {
+			c = (unsigned char)*ptr;
+		}
+		if (c == 0) {
+			strings->push_back(std::string(head, ptr));
+			break;
+		}
+		if (c == '\r' || c == '\n') {
+			newline = true;
+			ptr++;
+		} else {
+			if (c == '-' && newline) {
+				if (ptr + 3 < end && ptr[1] == '-' && ptr[2] == '-') {
+					c = ptr[3];
+					if (c == '\r' || c == '\n') {
+						strings->push_back(std::string(head, ptr));
+						ptr += 4;
+						head = ptr;
+					}
+				}
+			}
+			newline = false;
+			ptr++;
+		}
+	}
+	return strings->size() == 3;
+}
+
+void parse(char const *source, std::string *result1, std::string *result2)
+{
 	jstream::Parser json(source, source + strlen(source));
 	while (json.next()) {
 		char tmp[1000];
@@ -42,143 +103,103 @@ std::string parse(char const *source)
 			sprintf(tmp, "SymbolValue: \"%s\" = %s\n", json.key().c_str(), json.string().c_str());
 			break;
 		}
-		ret += tmp;
+		*result1 += tmp;
+		if (json.isvalue()) {
+			std::string s = json.path() + '=';
+			if (json.state() == jstream::String) {
+				s = s + '\"' + json.string() + '\"';
+			} else {
+				s = s + json.string();
+			}
+			s += '\n';
+			*result2 += s;
+		}
 	}
 	if (json.state() == jstream::SyntaxError) {
-		ret = json.string();
+		*result1 = json.string();
 	}
-	return ret;
 }
 
-void test()
+void get_tests(std::string const &loc, std::vector<std::string> *out)
+{
+	out->clear();
+	DIR *dir = opendir(loc.c_str());
+	if (dir) {
+		while (dirent *d = readdir(dir)) {
+			std::string name;
+			name = d->d_name;
+			if (d->d_type & DT_DIR) {
+				continue;
+			}
+			out->push_back(name);
+		}
+		closedir(dir);
+	}
+}
+
+void test_all()
 {
 	int pass = 0;
 	int fail = 0;
 	int total = 0;
-	auto TEST = [&](std::string const &input, std::string const &expected){
-		total++;
-		std::string result = parse(input.c_str());
-		if (trim(result) == trim(expected)) {
-			printf("#%d PASS\n", total);
-			pass++;
-		} else {
-			printf("#%d FAIL\n", total);
-			puts("--- INPUT ---------");
-			puts(trim(input).c_str());
-			puts("--- EXPECTED ----------");
-			puts(trim(expected).c_str());
-			puts("--- ACTUAL RESULT ----------");
-			puts(trim(result).c_str());
-			puts("---");
-			fail++;
+
+	std::string dir = "test/";
+	std::vector<std::string> tests;
+	get_tests(dir.c_str(), &tests);
+	std::sort(tests.begin(), tests.end());
+
+	for (std::string const &name : tests) {
+		std::string path = dir + name;
+		std::vector<char> vec;
+		if (read_file(path.c_str(), &vec) && !vec.empty()) {
+			total++;
+			std::vector<std::string> strings;
+			char const *begin = vec.data();
+			char const *end = begin + vec.size();
+			parse_test_case(begin, end, &strings);
+			std::string input;
+			std::string events;
+			std::string values;
+			if (strings.size() == 3) {
+				input = strings[0];
+				events = strings[1];
+				values = strings[2];
+			} else {
+				fail++;
+				printf("#%d TEST CASE SYNTAX ERROR %s\n", total, name.c_str());
+				continue;
+			}
+
+			std::string result1;
+			std::string result2;
+			parse(input.c_str(), &result1, &result2);
+			bool ok1 = trim(result1) == trim(events);
+			bool ok2 = trim(result2) == trim(values);
+			if (ok1 && ok2) {
+				printf("#%d PASS %s\n", total, name.c_str());
+				pass++;
+			} else {
+				fail++;
+				printf("#%d FAIL %s\n", total, name.c_str());
+				puts("--- INPUT ---------");
+				puts(trim(input).c_str());
+			}
+			if (!ok1) {
+				puts("--- EXPECTED EVENTS ----------");
+				puts(trim(events).c_str());
+				puts("--- ACTUAL RESULT ----------");
+				puts(trim(result1).c_str());
+				puts("---");
+			}
+			if (!ok2) {
+				puts("--- EXPECTED VALUES ----------");
+				puts(trim(values).c_str());
+				puts("--- ACTUAL RESULT ----------");
+				puts(trim(result2).c_str());
+				puts("---");
+			}
 		}
-	};
-
-
-	TEST(
-				R"---(
-{
-	"string": "abc",
-	"number": 123.456789,
-	"null": null,
-	"false": false,
-	"true": true
-}
-				)---",
-				R"---(
-StartObject: ""
-StringValue: "string" = "abc"
-NumberValue: "number" = 123.456789
-SymbolValue: "null" = null
-SymbolValue: "false" = false
-SymbolValue: "true" = true
-EndObject: ""
-				)---");
-
-	TEST(
-				R"---(
-{
-	"a": [ 12, 34, 56, 78 ]
-}
-				)---",
-				R"---(
-StartObject: ""
-StartArray: "a"
-NumberValue: "" = 12.000000
-NumberValue: "" = 34.000000
-NumberValue: "" = 56.000000
-NumberValue: "" = 78.000000
-EndArray: "a"
-EndObject: ""
-				)---");
-
-
-	TEST(
-				R"---(
-{
-	"a": [[ 12, 34 ],[ 56, 78 ]]
-}
-				)---",
-				R"---(
-StartObject: ""
-StartArray: "a"
-StartArray: ""
-NumberValue: "" = 12.000000
-NumberValue: "" = 34.000000
-EndArray: ""
-StartArray: ""
-NumberValue: "" = 56.000000
-NumberValue: "" = 78.000000
-EndArray: ""
-EndArray: "a"
-EndObject: ""
-				)---");
-
-	TEST(
-				R"---(
-"fruits": [
-	{ "name": "apple", "price": 150 },
-	{ "name": "banana", "price": 80 },
-	{ "name": "orange", "price": 52 }
-]
-				)---",
-				R"---(
-StartArray: "fruits"
-StartObject: ""
-StringValue: "name" = "apple"
-NumberValue: "price" = 150.000000
-EndObject: ""
-StartObject: ""
-StringValue: "name" = "banana"
-NumberValue: "price" = 80.000000
-EndObject: ""
-StartObject: ""
-StringValue: "name" = "orange"
-NumberValue: "price" = 52.000000
-EndObject: ""
-EndArray: "fruits"
-				)---");
-
-	TEST(
-				R"---(
-{
-  "access_token": "qwerty123",
-  "expires_in": 3599,
-  "scope": "https://www.googleapis.com/auth/userinfo.profile",
-  "token_type": "Bearer",
-  "id_token": "abcdefg"
-}
-				)---",
-				R"---(
-StartObject: ""
-StringValue: "access_token" = "qwerty123"
-NumberValue: "expires_in" = 3599.000000
-StringValue: "scope" = "https://www.googleapis.com/auth/userinfo.profile"
-StringValue: "token_type" = "Bearer"
-StringValue: "id_token" = "abcdefg"
-EndObject: ""
-				)---");
-
+	}
 
 	printf("---\n" "TOTAL: %d\n" " PASS: %d\n" " FAIL: %d\n", total, pass, fail);
 }

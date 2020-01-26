@@ -1,0 +1,27 @@
+"fruits": [
+	{ "name": "apple", "price": 150 },
+	{ "name": "banana", "price": 80 },
+	{ "name": "orange", "price": 52 }
+]
+---
+StartArray: "fruits"
+StartObject: ""
+StringValue: "name" = "apple"
+NumberValue: "price" = 150.000000
+EndObject: ""
+StartObject: ""
+StringValue: "name" = "banana"
+NumberValue: "price" = 80.000000
+EndObject: ""
+StartObject: ""
+StringValue: "name" = "orange"
+NumberValue: "price" = 52.000000
+EndObject: ""
+EndArray: "fruits"
+---
+fruits[{name="apple"
+fruits[{price=150
+fruits[{name="banana"
+fruits[{price=80
+fruits[{name="orange"
+fruits[{price=52
