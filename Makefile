@@ -1,17 +1,11 @@
-CXXFLAGS = -std=c++11 -I/usr/lib/llvm-6.0/include
+CXXFLAGS = -std=c++11
 
-all: orec
+all: a.out
 
-orec: main.o json.o
-	g++ $^ -o $@ -L/usr/lib/llvm-6.0/lib `/usr/bin/llvm-config-6.0 --libs`
+a.out: main.o test.o
+	g++ $^
 
 clean:
-	rm -f orec
-	rm -f *.o
 	rm -f a.out
-
-run: orec
-	./orec >test.ll
-	clang test.ll
-	./a.out
+	rm -f *.o
 

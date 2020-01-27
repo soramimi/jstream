@@ -3,3 +3,5 @@ jstream
 jstream.pdb
 jstream.exe
 jstream.ilk
+a.out
+*.o
