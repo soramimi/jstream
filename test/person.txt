@@ -1,0 +1,19 @@
+{
+ "name": "John Smith",
+ "age": 35,
+ "languages": ["English", "Japanese"]
+}
+---
+StartObject: ""
+StringValue: "name" = "John Smith"
+NumberValue: "age" = 35.000000
+StartArray: "languages"
+StringValue: "" = "English"
+StringValue: "" = "Japanese"
+EndArray: "languages"
+EndObject: ""
+---
+{name="John Smith"
+{age=35
+{languages[="English"
+{languages[="Japanese"
