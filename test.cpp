@@ -36,7 +36,7 @@ bool read_file(char const *path, std::vector<char> *out)
 	return ok;
 }
 
-bool parse_test_case(char const *begin, char const *end, std::vector<std::string> *strings)
+void parse_test_case(char const *begin, char const *end, std::vector<std::string> *strings)
 {
 	strings->clear();
 	char const *head = begin;
@@ -69,10 +69,9 @@ bool parse_test_case(char const *begin, char const *end, std::vector<std::string
 			ptr++;
 		}
 	}
-	return strings->size() == 3;
 }
 
-void parse(char const *source, std::string *result1, std::string *result2)
+void parse(char const *source, std::string *result1)
 {
 	jstream::Parser json(source, source + strlen(source));
 	while (json.next()) {
@@ -112,11 +111,11 @@ void parse(char const *source, std::string *result1, std::string *result2)
 				s = s + json.string();
 			}
 			s += '\n';
-			*result2 += s;
+			*result1 += s;
 		}
 	}
-	if (json.state() == jstream::SyntaxError) {
-		*result1 = json.string();
+	if (json.state() == jstream::Error) {
+		*result1 += "Error: " + json.string();
 	}
 }
 
@@ -158,12 +157,10 @@ void test_all()
 			char const *end = begin + vec.size();
 			parse_test_case(begin, end, &strings);
 			std::string input;
-			std::string events;
-			std::string values;
-			if (strings.size() == 3) {
+			std::string result;
+			if (strings.size() == 2) {
 				input = strings[0];
-				events = strings[1];
-				values = strings[2];
+				result = strings[1];
 			} else {
 				fail++;
 				printf("#%d TEST CASE SYNTAX ERROR %s\n", total, name.c_str());
@@ -171,31 +168,19 @@ void test_all()
 			}
 
 			std::string result1;
-			std::string result2;
-			parse(input.c_str(), &result1, &result2);
-			bool ok1 = trim(result1) == trim(events);
-			bool ok2 = trim(result2) == trim(values);
-			if (ok1 && ok2) {
-				printf("#%d PASS %s\n", total, name.c_str());
+			parse(input.c_str(), &result1);
+			if (trim(result1) == trim(result)) {
 				pass++;
+				printf("#%d PASS %s\n", total, name.c_str());
 			} else {
 				fail++;
 				printf("#%d FAIL %s\n", total, name.c_str());
 				puts("--- INPUT ---------");
 				puts(trim(input).c_str());
-			}
-			if (!ok1) {
 				puts("--- EXPECTED EVENTS ----------");
-				puts(trim(events).c_str());
+				puts(trim(result).c_str());
 				puts("--- ACTUAL RESULT ----------");
 				puts(trim(result1).c_str());
-				puts("---");
-			}
-			if (!ok2) {
-				puts("--- EXPECTED VALUES ----------");
-				puts(trim(values).c_str());
-				puts("--- ACTUAL RESULT ----------");
-				puts(trim(result2).c_str());
 				puts("---");
 			}
 		}

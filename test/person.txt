@@ -6,14 +6,13 @@
 ---
 StartObject: ""
 StringValue: "name" = "John Smith"
+{name="John Smith"
 NumberValue: "age" = 35.000000
+{age=35
 StartArray: "languages"
 StringValue: "" = "English"
+{languages[="English"
 StringValue: "" = "Japanese"
+{languages[="Japanese"
 EndArray: "languages"
 EndObject: ""
----
-{name="John Smith"
-{age=35
-{languages[="English"
-{languages[="Japanese"

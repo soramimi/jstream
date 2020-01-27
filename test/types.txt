@@ -8,14 +8,13 @@
 ---
 StartObject: ""
 StringValue: "string" = "abc"
-NumberValue: "number" = 123.456789
-SymbolValue: "null" = null
-SymbolValue: "false" = false
-SymbolValue: "true" = true
-EndObject: ""
----
 {string="abc"
+NumberValue: "number" = 123.456789
 {number=123.456789
+SymbolValue: "null" = null
 {null=null
+SymbolValue: "false" = false
 {false=false
+SymbolValue: "true" = true
 {true=true
+EndObject: ""

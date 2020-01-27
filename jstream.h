@@ -21,7 +21,7 @@ enum StateType {
 	True,
 	String,
 	Number,
-	SyntaxError,
+	Error,
 };
 
 class Parser {
@@ -155,6 +155,7 @@ private:
 		char const *begin = nullptr;
 		char const *end = nullptr;
 		char const *ptr = nullptr;
+		bool easy_mode = false;
 		std::vector<StateType> states;
 		std::string key;
 		std::string string;
@@ -212,7 +213,12 @@ private:
 		d.key.clear();
 		return f;
 	}
-public:
+
+	bool is_easy_mode() const
+	{
+		return d.easy_mode;
+	}
+
 public:
 	Parser(char const *begin, char const *end)
 	{
@@ -221,6 +227,10 @@ public:
 	Parser(char const *ptr, int len = -1)
 	{
 		parse(ptr, len);
+	}
+	void set_easy_mode(bool easy)
+	{
+		d.easy_mode = easy;
 	}
 	void parse(char const *begin, char const *end)
 	{
@@ -365,9 +375,12 @@ public:
 					}
 				}
 			}
+			if (is_easy_mode() && state() == Comma) {
+				return true;
+			}
 			d.states.clear();
-			push_state(SyntaxError);
-			d.string = "jstream: syntax error";
+			push_state(Error);
+			d.string = "syntax error";
 		}
 		return false;
 	}

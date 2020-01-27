@@ -8,14 +8,13 @@
 ---
 StartObject: ""
 StringValue: "access_token" = "qwerty123"
-NumberValue: "expires_in" = 3599.000000
-StringValue: "scope" = "https://www.googleapis.com/auth/userinfo.profile"
-StringValue: "token_type" = "Bearer"
-StringValue: "id_token" = "abcdefg"
-EndObject: ""
----
 {access_token="qwerty123"
+NumberValue: "expires_in" = 3599.000000
 {expires_in=3599
+StringValue: "scope" = "https://www.googleapis.com/auth/userinfo.profile"
 {scope="https://www.googleapis.com/auth/userinfo.profile"
+StringValue: "token_type" = "Bearer"
 {token_type="Bearer"
+StringValue: "id_token" = "abcdefg"
 {id_token="abcdefg"
+EndObject: ""

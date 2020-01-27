@@ -45,7 +45,7 @@ void main2()
   "expires_in": 3599,
   "scope": "https://www.googleapis.com/auth/userinfo.profile",
   "token_type": "Bearer",
-  "id_token": "abcdefg"
+  "id_token": "abcdefg",
 }
 )---";
 
@@ -77,11 +77,14 @@ void main2()
 			break;
 		}
 	}
+	if (json.state() == jstream::Error) {
+		printf("Error: %s\n", json.string().c_str());
+	}
 }
 
 int main()
 {
-//	main1();
+//	main2();
 	test_all();
 
 	return 0;
