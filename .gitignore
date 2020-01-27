@@ -1,2 +1,5 @@
 *.user
 jstream
+jstream.pdb
+jstream.exe
+jstream.ilk

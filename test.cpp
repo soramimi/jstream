@@ -1,25 +1,46 @@
 #include "test.h"
 #include "jstream.h"
 #include <fcntl.h>
-#include <unistd.h>
 #include <sys/stat.h>
-#include <dirent.h>
 #include <algorithm>
+
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
+#include <dirent.h>
+#include <unistd.h>
+#define O_BINARY 0
+#endif
 
 std::string trim(std::string const &s)
 {
-	size_t i = 0;
-	size_t j = s.size();
-	while (i < j && isspace((unsigned char)s[i])) i++;
-	while (i < j && isspace((unsigned char)s[j - 1])) j--;
-	return s.substr(i, j - i);
+	char const *begin = s.c_str();
+	char const *end = begin + s.size();
+	while (begin < end && isspace((unsigned char)*begin)) begin++;
+	while (begin < end && isspace((unsigned char)end[-1])) end--;
+	std::vector<char> vec;
+	vec.reserve(end - begin);
+	char const *src = begin;
+	while (src < end) {
+		if (*src == '\r') {
+			src++;
+		} else {
+			vec.push_back(*src);
+			src++;
+		}
+	}
+	if (vec.empty()) return {};
+	begin = vec.data();
+	end = begin + vec.size();
+	return std::string(begin, end);
 }
 
 bool read_file(char const *path, std::vector<char> *out)
 {
 	bool ok = false;
 	out->clear();
-	int fd = open(path, O_RDONLY);
+	int fd = open(path, O_RDONLY | O_BINARY);
 	if (fd != -1) {
 		struct stat st;
 		if (fstat(fd, &st) == 0) {
@@ -119,6 +140,26 @@ void parse(char const *source, std::string *result1)
 	}
 }
 
+#ifdef _WIN32
+void get_tests(const std::string &loc, std::vector<std::string> *out)
+{
+	out->clear();
+	std::string filter = loc + "*.*";
+	WIN32_FIND_DATAA fd;
+	HANDLE h = FindFirstFileA(filter.c_str(), &fd);
+	if (h != INVALID_HANDLE_VALUE) {
+		do {
+			std::string name;
+			name = fd.cFileName;
+			if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+				continue;
+			}
+			out->push_back(name);
+		} while (FindNextFileA(h, &fd));
+		FindClose(h);
+	}
+}
+#else
 void get_tests(std::string const &loc, std::vector<std::string> *out)
 {
 	out->clear();
@@ -135,6 +176,7 @@ void get_tests(std::string const &loc, std::vector<std::string> *out)
 		closedir(dir);
 	}
 }
+#endif
 
 void test_all()
 {
