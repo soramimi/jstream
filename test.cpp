@@ -94,7 +94,7 @@ void parse_test_case(char const *begin, char const *end, std::vector<std::string
 
 void parse(char const *source, std::string *result1)
 {
-	jstream::Parser json(source, source + strlen(source));
+	jstream::Reader json(source, source + strlen(source));
 	while (json.next()) {
 		char tmp[1000];
 		tmp[0] = 0;

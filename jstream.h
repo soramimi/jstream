@@ -3,28 +3,32 @@
 
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <string>
 #include <vector>
 
 namespace jstream {
 
+enum Symbol {
+	Null,
+	False,
+	True,
+};
+
 enum StateType {
-	None,
+	None = 100,
 	Key,
 	Comma,
 	StartObject,
 	EndObject,
 	StartArray,
 	EndArray,
-	Null,
-	False,
-	True,
 	String,
 	Number,
 	Error,
 };
 
-class Parser {
+class Reader {
 private:
 	static std::string to_stdstr(std::vector<char> const &vec)
 	{
@@ -220,11 +224,11 @@ private:
 	}
 
 public:
-	Parser(char const *begin, char const *end)
+	Reader(char const *begin, char const *end)
 	{
 		parse(begin, end);
 	}
-	Parser(char const *ptr, int len = -1)
+	Reader(char const *ptr, int len = -1)
 	{
 		parse(ptr, len);
 	}
@@ -361,15 +365,15 @@ public:
 					if (state() == Key || state() == Comma || state() == StartArray) {
 						d.ptr += n;
 						if (d.string == "false") {
-							push_state(False);
+							push_state((StateType)False);
 							return true;
 						}
 						if (d.string == "true") {
-							push_state(True);
+							push_state((StateType)True);
 							return true;
 						}
 						if (d.string == "null") {
-							push_state(Null);
+							push_state((StateType)Null);
 							return true;
 						}
 					}
@@ -450,6 +454,278 @@ public:
 			}
 		}
 		return path == d.key;
+	}
+};
+
+class Writer {
+protected:
+	void print(char const *p, int n)
+	{
+		if (output_fn) {
+			output_fn(p, n);
+		} else {
+			for (size_t i = 0; i < n; i++) {
+				putchar(p[i]);
+			}
+		}
+	}
+
+	void print(char c)
+	{
+		print(&c, 1);
+	}
+
+	void print(char const *p)
+	{
+		print(p, strlen(p));
+	}
+
+	void print(std::string const &s)
+	{
+		print(s.c_str(), s.size());
+	}
+private:
+	std::vector<int> stack;
+	std::function<void (char const *p, int n)> output_fn;
+
+	void printIndent()
+	{
+		size_t n = stack.size() - 1;
+		for (size_t i = 0; i < n; i++) {
+			print(' ');
+			print(' ');
+		}
+	}
+
+	void printNumber(double v)
+	{
+		char tmp[100];
+		sprintf(tmp, "%f", v);
+		char *ptr = strchr(tmp, '.');
+		if (ptr) {
+			char *end = ptr + strlen(ptr);
+			while (ptr < end && end[-1] == '0') {
+				end--;
+			}
+			if (ptr + 1 == end) {
+				end--;
+			}
+			*end = 0;
+		}
+		print(tmp);
+	}
+
+	void printString(std::string const &s, std::string const &name = {})
+	{
+		char const *ptr = s.c_str();
+		char const *end = ptr + s.size();
+		std::vector<char> buf;
+		buf.reserve(end - ptr + 10);
+		while (ptr < end) {
+			int c = (unsigned char)*ptr;
+			ptr++;
+			switch (c) {
+			case '\"': buf.push_back('\\'); buf.push_back('\"'); break;
+			case '\\': buf.push_back('\\'); buf.push_back('\\'); break;
+			case '\b': buf.push_back('\\'); buf.push_back('b'); break;
+			case '\f': buf.push_back('\\'); buf.push_back('f'); break;
+			case '\n': buf.push_back('\\'); buf.push_back('n'); break;
+			case '\r': buf.push_back('\\'); buf.push_back('r'); break;
+			case '\t': buf.push_back('\\'); buf.push_back('t'); break;
+			default:
+				if (c >= 0x20 && c < 0x7f) {
+					buf.push_back(c);
+				} else {
+					uint32_t u = 0;
+					if ((c & 0xe0) == 0xc0 && ptr < end) {
+						if ((ptr[0] & 0xc0) == 0x80) {
+							int d = (unsigned char)ptr[0];
+							u = ((c & 0x1f) << 6) | (d & 0x3f);
+						}
+					} else if ((c & 0xf0) == 0xe0 && ptr + 1 < end) {
+						if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80) {
+							int d = (unsigned char)ptr[0];
+							int e = (unsigned char)ptr[1];
+							u = ((c & 0x0f) << 12) | ((d & 0x3f) << 6) | (e & 0x3f);
+						}
+					} else if ((c & 0xf8) == 0xf0 && ptr + 2 < end) {
+						if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80 && (ptr[2] & 0xc0) == 0x80) {
+							int d = (unsigned char)ptr[0];
+							int e = (unsigned char)ptr[1];
+							int f = (unsigned char)ptr[2];
+							u = ((c & 0x0f) << 18) | ((d & 0x3f) << 12) | ((e & 0x3f) << 6) | (f & 0x3f);
+						}
+					}
+					if (u != 0) {
+						char tmp[20];
+						if (u >= 0x10000 && u < 0x110000) {
+							uint16_t h = (u - 0x10000) / 0x400 + 0xd800;
+							uint16_t l = (u - 0x10000) % 0x400 + 0xdc00;
+							sprintf(tmp, "\\u%04X\\u%04X", h, l);
+							buf.insert(buf.end(), tmp, tmp + 12);
+						} else {
+							sprintf(tmp, "\\u%04X", u);
+							buf.insert(buf.end(), tmp, tmp + 6);
+						}
+					}
+				}
+			}
+		}
+		print('\"');
+		if (!buf.empty()) {
+			print(buf.data(), buf.size());
+		}
+		print('\"');
+	}
+
+	void printValue(std::string const &name, std::function<void ()> const &fn)
+	{
+		printName(name);
+
+		fn();
+
+		if (!stack.empty()) stack.back()++;
+	}
+
+	void printObject(std::string const &name = {}, std::function<void ()> const &fn = {})
+	{
+		printName(name);
+		print('{');
+		stack.push_back(0);
+		if (fn) {
+			fn();
+			endObject();
+		}
+	}
+
+	void printArray(std::string const &name = {}, std::function<void ()> const &fn = {})
+	{
+		printName(name);
+		print('[');
+		stack.push_back(0);
+		if (fn) {
+			fn();
+			endArray();
+		}
+	}
+
+	void endBlock()
+	{
+		print('\n');
+		if (!stack.empty()) {
+			stack.pop_back();
+			if (!stack.empty()) stack.back()++;
+		}
+		printIndent();
+	}
+public:
+	Writer(std::function<void (char const *p, int n)> fn = {})
+	{
+		output_fn = fn;
+		stack.push_back(0);
+	}
+
+	~Writer()
+	{
+		if (!stack.empty() && stack.front() > 0) {
+			print('\n');
+		}
+	}
+
+	void printName(std::string const &name)
+	{
+		if (!stack.empty()) {
+			if (stack.back() > 0) {
+				print(',');
+			}
+		}
+		if (stack.size() > 1) {
+			print('\n');
+		}
+		printIndent();
+		if (!name.empty()) {
+			print(name);
+			print(':');
+			print(' ');
+		}
+	}
+
+	void startObject(std::string const &name = {})
+	{
+		printObject(name);
+	}
+
+	void endObject()
+	{
+		endBlock();
+		print('}');
+	}
+
+	void object(std::string const &name, std::function<void ()> const &fn)
+	{
+		printObject(name, fn);
+	}
+
+	void startArray(std::string const &name = {})
+	{
+		printArray(name, {});
+	}
+
+	void endArray()
+	{
+		endBlock();
+		print(']');
+	}
+
+	void array(std::string const &name, std::function<void ()> const &fn)
+	{
+		printArray(name, fn);
+	}
+
+	void number(double v, std::string const &name = {})
+	{
+		printValue(name, [&](){
+			printNumber(v);
+		});
+	}
+
+	void string(std::string const &s, std::string const &name = {})
+	{
+		printValue(name, [&](){
+			printString(s);
+		});
+	}
+
+	void symbol(Symbol v, std::string const &name = {})
+	{
+		printValue(name, [&](){
+			switch (v) {
+				break;
+			case False:
+				print("false");
+				break;
+			case True:
+				print("true");
+				break;
+			default:
+				print("null");
+			}
+		});
+	}
+
+	void a(double v, std::string const &name = {})
+	{
+		number(v, name);
+	}
+
+	void a(std::string const &s, std::string const &name = {})
+	{
+		string(s, name);
+	}
+
+	void a(Symbol n, std::string const &name = {})
+	{
+		symbol(n, name);
 	}
 };
 
