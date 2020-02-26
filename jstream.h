@@ -10,14 +10,14 @@
 namespace jstream {
 
 enum Symbol {
+	None,
 	Null,
 	False,
 	True,
 };
 
 enum StateType {
-	None = 100,
-	Key,
+	Key = 100,
 	Comma,
 	StartObject,
 	EndObject,
@@ -314,6 +314,7 @@ public:
 				d.ptr++;
 				if (state() != Key) {
 					d.key.clear();
+					d.string.clear();
 				}
 				d.depth.push_back(d.key + '{');
 				push_state(StartObject);
@@ -323,6 +324,7 @@ public:
 				d.ptr++;
 				if (state() != Key) {
 					d.key.clear();
+					d.string.clear();
 				}
 				d.depth.push_back(d.key + '[');
 				push_state(StartArray);
@@ -391,7 +393,7 @@ public:
 
 	StateType state() const
 	{
-		return d.states.empty() ? None : d.states.back();
+		return d.states.empty() ? (StateType)None : d.states.back();
 	}
 
 	bool isobject() const
@@ -400,9 +402,21 @@ public:
 		case StartObject:
 		case StartArray:
 			return true;
+		case EndObject:
+		case EndArray:
+			if (d.states.size() > 1) {
+				auto s = d.states[d.states.size() - 2];
+				switch (s) {
+				case StartObject:
+				case StartArray:
+					return true;
+				}
+			}
+			break;
 		}
 		return false;
 	}
+
 	bool isvalue() const
 	{
 		switch (state()) {
@@ -415,26 +429,60 @@ public:
 		}
 		return false;
 	}
+
 	std::string key() const
 	{
 		return d.key;
 	}
+
 	std::string string() const
 	{
 		return d.string;
 	}
+
+	Symbol symbol() const
+	{
+		int s = state();
+
+		switch (s) {
+		case Null:
+		case False:
+		case True:
+			return (Symbol)s;
+		}
+		return None;
+	}
+
+	bool isnull() const
+	{
+		return symbol() == Null;
+	}
+
+	bool isfalse() const
+	{
+		return symbol() == False;
+	}
+
+	bool istrue() const
+	{
+		return symbol() == True;
+	}
+
 	double number() const
 	{
 		return d.number;
 	}
+
 	bool isarray() const
 	{
 		return d.is_array;
 	}
+
 	int depth() const
 	{
 		return d.depth.size();
 	}
+
 	std::string path() const
 	{
 		std::string path;
@@ -443,6 +491,7 @@ public:
 		}
 		return path + d.key;
 	}
+
 	bool match(char const *path) const
 	{
 		if (!(isobject() || isvalue())) return false;
@@ -515,7 +564,7 @@ private:
 		print(tmp);
 	}
 
-	void printString(std::string const &s, std::string const &name = {})
+	void printString(std::string const &s)
 	{
 		char const *ptr = s.c_str();
 		char const *end = ptr + s.size();
@@ -644,7 +693,7 @@ public:
 		}
 		printIndent();
 		if (!name.empty()) {
-			print(name);
+			printString(name);
 			print(':');
 			print(' ');
 		}
@@ -713,19 +762,14 @@ public:
 		});
 	}
 
-	void a(double v, std::string const &name = {})
+	void boolean(bool b, std::string const &name = {})
 	{
-		number(v, name);
+		symbol(b ? True : False, name);
 	}
 
-	void a(std::string const &s, std::string const &name = {})
+	void null()
 	{
-		string(s, name);
-	}
-
-	void a(Symbol n, std::string const &name = {})
-	{
-		symbol(n, name);
+		symbol(Null);
 	}
 };
 

@@ -49,11 +49,11 @@ void print(GoogleAccessToken const &token)
 	});
 
 	w.object({}, [&](){
-		w.a(token.access_token, "access_token");
-		w.a(token.expires_in, "expires_in");
-		w.a(token.scope, "scope");
-		w.a(token.token_type, "token_type");
-		w.a(token.id_token, "id_token");
+		w.string(token.access_token, "access_token");
+		w.string(token.expires_in, "expires_in");
+		w.string(token.scope, "scope");
+		w.string(token.token_type, "token_type");
+		w.string(token.id_token, "id_token");
 	});
 }
 
