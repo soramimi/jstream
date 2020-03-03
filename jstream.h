@@ -492,15 +492,49 @@ public:
 		return path + d.key;
 	}
 
-	bool match(char const *path) const
+	bool match(char const *path, std::vector<std::string> *vals = nullptr) const
 	{
+		if (vals) {
+			vals->clear();
+		}
 		if (!(isobject() || isvalue())) return false;
-		for (std::string const &s : d.depth) {
+		size_t i;
+		for (i = 0; i < d.depth.size(); i++) {
+			std::string const &s = d.depth[i];
+			if (s.empty()) break;
+			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
+				std::string t;
+				if (path[1] == 0) {
+					if (vals) {
+						while (i < d.depth.size()) {
+							t += d.depth[i];
+							i++;
+						}
+						if (isvalue()) {
+							t += d.key;
+						}
+						vals->push_back(t);
+					}
+					return true;
+				}
+				t = s.substr(0, s.size() - 1);
+				if (vals) {
+					vals->push_back(t);
+				}
+				path += 2;
+				continue;
+			}
 			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
 			path += s.size();
-			if (*path == '*' && path[1] == 0) {
+		}
+		if (path[0] == '*') {
+			if (path[1] == 0 && i == d.depth.size() && isvalue()) {
+				if (vals) {
+					vals->push_back(d.key);
+				}
 				return true;
 			}
+			return false;
 		}
 		return path == d.key;
 	}
