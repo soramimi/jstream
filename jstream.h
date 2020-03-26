@@ -505,17 +505,20 @@ public:
 			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
 				std::string t;
 				if (path[1] == 0) {
-					if (vals) {
-						while (i < d.depth.size()) {
-							t += d.depth[i];
-							i++;
+					if (i + 1 == d.depth.size()) {
+						if (vals) {
+							while (i < d.depth.size()) {
+								t += d.depth[i];
+								i++;
+							}
+							if (isvalue()) {
+								t += d.key;
+							}
+							vals->push_back(t);
 						}
-						if (isvalue()) {
-							t += d.key;
-						}
-						vals->push_back(t);
+						return true;
 					}
-					return true;
+					return false;
 				}
 				t = s.substr(0, s.size() - 1);
 				if (vals) {
@@ -528,9 +531,13 @@ public:
 			path += s.size();
 		}
 		if (path[0] == '*') {
-			if (path[1] == 0 && i == d.depth.size() && isvalue()) {
+			if (path[1] == 0 && i == d.depth.size() && (isvalue() || state() == EndObject || state() == EndArray)) {
 				if (vals) {
-					vals->push_back(d.key);
+					std::string t;
+					if (isvalue()) {
+						t = d.key;
+					}
+					vals->push_back(t);
 				}
 				return true;
 			}
