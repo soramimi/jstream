@@ -83,7 +83,7 @@ void main2()
 
 int main()
 {
-#if 1
+#if 0
 	main2();
 #elif 1
 	test_all();
