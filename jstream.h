@@ -6,6 +6,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace jstream {
 
@@ -505,9 +506,9 @@ public:
 		return path + d.key;
 	}
 
-	bool match(char const *path, std::vector<std::string> *vals = nullptr) const
+	bool match(char const *path, std::vector<std::string> *vals = nullptr, bool clear = true) const
 	{
-		if (vals) {
+		if (vals && clear) {
 			vals->clear();
 		}
 		if (!(isobject() || isvalue())) return false;
@@ -516,10 +517,10 @@ public:
 			std::string const &s = d.depth[i];
 			if (s.empty()) break;
 			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
-				std::string t;
 				if (path[1] == 0) {
 					if (i + 1 == d.depth.size()) {
 						if (vals) {
+							std::string t;
 							while (i < d.depth.size()) {
 								t += d.depth[i];
 								i++;
@@ -532,10 +533,6 @@ public:
 						return true;
 					}
 					return false;
-				}
-				t = s.substr(0, s.size() - 1);
-				if (vals) {
-					vals->push_back(t);
 				}
 				path += 2;
 				continue;
@@ -556,7 +553,42 @@ public:
 			}
 			return false;
 		}
-		return path == d.key;
+		if (path == d.key) {
+			if (vals && isvalue()) {
+				vals->push_back(string());
+			}
+			return true;
+		}
+		return false;
+	}
+
+	typedef std::map<std::string_view, std::string *> rule_for_string_t;
+	typedef std::map<std::string_view, std::vector<std::string> *> rule_for_strings_t;
+
+	void parse(rule_for_string_t const &rule, char sep = ',')
+	{
+		while (next()) {
+			for (auto &t : rule) {
+				std::vector<std::string> vals;
+				if (match(t.first.data(), &vals, true)) {
+					for (auto const &s : vals) {
+						if (!t.second->empty()) {
+							*t.second += sep;
+						}
+						*t.second += s;
+					}
+				}
+			}
+		}
+	}
+
+	void parse(rule_for_strings_t const &rule)
+	{
+		while (next()) {
+			for (auto &t : rule) {
+				match(t.first.data(), t.second, false);
+			}
+		}
 	}
 };
 
