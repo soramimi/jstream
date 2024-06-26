@@ -178,7 +178,7 @@ void get_tests(std::string const &loc, std::vector<std::string> *out)
 }
 #endif
 
-void test_all()
+void test_all(bool print_result)
 {
 	int pass = 0;
 	int fail = 0;
@@ -213,22 +213,28 @@ void test_all()
 			parse(input.c_str(), &result1);
 			if (trim(result1) == trim(result)) {
 				pass++;
-				printf("#%d PASS %s\n", total, name.c_str());
+				if (print_result) {
+					printf("#%d PASS %s\n", total, name.c_str());
+				}
 			} else {
 				fail++;
-				printf("#%d FAIL %s\n", total, name.c_str());
-				puts("--- INPUT ---------");
-				puts(trim(input).c_str());
-				puts("--- EXPECTED EVENTS ----------");
-				puts(trim(result).c_str());
-				puts("--- ACTUAL RESULT ----------");
-				puts(trim(result1).c_str());
-				puts("---");
+				if (print_result) {
+					printf("#%d FAIL %s\n", total, name.c_str());
+					puts("--- INPUT ---------");
+					puts(trim(input).c_str());
+					puts("--- EXPECTED EVENTS ----------");
+					puts(trim(result).c_str());
+					puts("--- ACTUAL RESULT ----------");
+					puts(trim(result1).c_str());
+					puts("---");
+				}
 			}
 		}
 	}
-
-	printf("---\n" "TOTAL: %d\n" " PASS: %d\n" " FAIL: %d\n", total, pass, fail);
+	
+	if (print_result) {
+		printf("---\n" "TOTAL: %d\n" " PASS: %d\n" " FAIL: %d\n", total, pass, fail);
+	}
 }
 
 
