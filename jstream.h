@@ -6,6 +6,8 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <map>
+#include <string_view>
 
 namespace jstream {
 
@@ -121,23 +123,36 @@ private:
 								tmp[2] = ptr[2];
 								tmp[3] = ptr[3];
 								tmp[4] = 0;
-								uint16_t unicode = (uint16_t)strtol(tmp, nullptr, 16);
+								ptr += 4;
+								uint32_t unicode = (uint32_t)strtol(tmp, nullptr, 16);
+								if (unicode >= 0xd800 && unicode < 0xdc00) {
+									if (ptr + 5 < end && ptr[0] == '\\' && ptr[1] == 'u') {
+										tmp[0] = ptr[2];
+										tmp[1] = ptr[3];
+										tmp[2] = ptr[4];
+										tmp[3] = ptr[5];
+										uint32_t surrogate = (uint32_t)strtol(tmp, nullptr, 16);
+										if (surrogate >= 0xdc00 && surrogate < 0xe000) {
+											ptr += 6;
+											unicode = ((unicode - 0xd800) << 10) + (surrogate - 0xdc00) + 0x10000;
+										}
+									}
+								}
 								if (unicode < (1 << 7)) {
 									vec.push_back(unicode & 0x7f);
 								} else if (unicode < (1 << 11)) {
-									vec.push_back(((unicode << 2) & 0x1f) | 0xc0);
+									vec.push_back(((unicode >> 6) & 0x1f) | 0xc0);
 									vec.push_back((unicode & 0x3f) | 0x80);
 								} else if (unicode < (1 << 16)) {
-									vec.push_back(((unicode << 4) & 0x0f) | 0xe0);
-									vec.push_back(((unicode << 2) & 0x3f) | 0x80);
+									vec.push_back(((unicode >> 12) & 0x0f) | 0xe0);
+									vec.push_back(((unicode >> 6) & 0x3f) | 0x80);
 									vec.push_back((unicode & 0x3f) | 0x80);
 								} else if (unicode < (1 << 21)) {
-									vec.push_back(((unicode << 6) & 0x07) | 0xf0);
-									vec.push_back(((unicode << 4) & 0x3f) | 0x80);
-									vec.push_back(((unicode << 2) & 0x3f) | 0x80);
+									vec.push_back(((unicode >> 18) & 0x07) | 0xf0);
+									vec.push_back(((unicode >> 12) & 0x3f) | 0x80);
+									vec.push_back(((unicode >> 6) & 0x3f) | 0x80);
 									vec.push_back((unicode & 0x3f) | 0x80);
 								}
-								ptr += 4;
 							}
 							break;
 						default:
@@ -492,9 +507,9 @@ public:
 		return path + d.key;
 	}
 
-	bool match(char const *path, std::vector<std::string> *vals = nullptr) const
+	bool match(char const *path, std::vector<std::string> *vals = nullptr, bool clear = true) const
 	{
-		if (vals) {
+		if (vals && clear) {
 			vals->clear();
 		}
 		if (!(isobject() || isvalue())) return false;
@@ -503,11 +518,11 @@ public:
 			std::string const &s = d.depth[i];
 			if (s.empty()) break;
 			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
-				std::string t;
 				if (path[1] == 0) {
 					if (state() == StartObject) {
 						if (i + 1 == d.depth.size()) {
 							if (vals) {
+								std::string t;
 								while (i < d.depth.size()) {
 									t += d.depth[i];
 									i++;
@@ -521,10 +536,6 @@ public:
 						}
 					}
 					return false;
-				}
-				t = s.substr(0, s.size() - 1);
-				if (vals) {
-					vals->push_back(t);
 				}
 				path += 2;
 				continue;
@@ -545,7 +556,42 @@ public:
 			}
 			return false;
 		}
-		return path == d.key;
+		if (path == d.key) {
+			if (vals && isvalue()) {
+				vals->push_back(string());
+			}
+			return true;
+		}
+		return false;
+	}
+
+	typedef std::map<std::string_view, std::string *> rule_for_string_t;
+	typedef std::map<std::string_view, std::vector<std::string> *> rule_for_strings_t;
+
+	void parse(rule_for_string_t const &rule, char sep = ',')
+	{
+		while (next()) {
+			for (auto &t : rule) {
+				std::vector<std::string> vals;
+				if (match(t.first.data(), &vals, true)) {
+					for (auto const &s : vals) {
+						if (!t.second->empty()) {
+							*t.second += sep;
+						}
+						*t.second += s;
+					}
+				}
+			}
+		}
+	}
+
+	void parse(rule_for_strings_t const &rule)
+	{
+		while (next()) {
+			for (auto &t : rule) {
+				match(t.first.data(), t.second, false);
+			}
+		}
 	}
 
 	bool match_end_object(char const *path) const

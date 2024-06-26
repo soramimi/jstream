@@ -1,5 +1,8 @@
 {
-	"string": "abc",
+	"string1": "abc",
+	"string2": "\u00a9",
+	"string3": "\u3042",
+	"string4": "\ud834\udd1e",
 	"number": 123.456789,
 	"null": null,
 	"false": false,
@@ -7,8 +10,14 @@
 }
 ---
 StartObject: ""
-StringValue: "string" = "abc"
-{string="abc"
+StringValue: "string1" = "abc"
+{string1="abc"
+StringValue: "string2" = "©"
+{string2="©"
+StringValue: "string3" = "あ"
+{string3="あ"
+StringValue: "string4" = "𝄞"
+{string4="𝄞"
 NumberValue: "number" = 123.456789
 {number=123.456789
 SymbolValue: "null" = null
