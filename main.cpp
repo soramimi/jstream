@@ -61,22 +61,18 @@ void main2()
 {
 	std::string input = R"---(
 {
-  "items": {
 	"hoge": {
-	  "name": "foo"
-	},
-	"fuga": {
-	  "name": "bar"
+		"foo": 123,
+		"bar": 456
 	}
-  }
 }
 )---";
-
+	std::vector<double> vals;
 	jstream::Reader json(input.c_str(), input.size());
 	while (json.next()) {
-		std::vector<std::string> vals;
-		if (json.match("{items{*{name", &vals)) {
-			puts(vals[0].c_str());
+		printf("%d: %s\n", json.state(), json.path().c_str());
+		if (json.match_end_object("{hoge")) {
+			puts("end hoge!");
 		}
 	}
 }
@@ -84,9 +80,9 @@ void main2()
 int main()
 {
 #if 1
-	main2();
-#elif 1
 	test_all();
+#elif 1
+	main2();
 #else
 	auto t = parse();
 	print(t);

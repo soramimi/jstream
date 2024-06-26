@@ -505,18 +505,20 @@ public:
 			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
 				std::string t;
 				if (path[1] == 0) {
-					if (i + 1 == d.depth.size()) {
-						if (vals) {
-							while (i < d.depth.size()) {
-								t += d.depth[i];
-								i++;
+					if (state() == StartObject) {
+						if (i + 1 == d.depth.size()) {
+							if (vals) {
+								while (i < d.depth.size()) {
+									t += d.depth[i];
+									i++;
+								}
+								if (isvalue()) {
+									t += d.key;
+								}
+								vals->push_back(t);
 							}
-							if (isvalue()) {
-								t += d.key;
-							}
-							vals->push_back(t);
+							return true;
 						}
-						return true;
 					}
 					return false;
 				}
@@ -544,6 +546,16 @@ public:
 			return false;
 		}
 		return path == d.key;
+	}
+
+	bool match_end_object(char const *path) const
+	{
+		return state() == EndObject && match(path);
+	}
+
+	bool match_end_array(char const *path) const
+	{
+		return state() == EndArray && match(path);
 	}
 };
 
