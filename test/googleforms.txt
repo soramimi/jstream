@@ -1,0 +1,92 @@
+{
+  "responses": [
+    {
+      "responseId": "ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA",
+      "createTime": "2024-06-19T16:05:51.394Z",
+      "lastSubmittedTime": "2024-06-19T16:05:51.394652Z",
+      "answers": {
+        "704f9a53": {
+          "questionId": "704f9a53",
+          "textAnswers": {
+            "answers": [
+              {
+                "value": "soramimi"
+              }
+            ]
+          }
+        },
+        "4842f816": {
+          "questionId": "4842f816",
+          "textAnswers": {
+            "answers": [
+              {
+                "value": "L"
+              }
+            ]
+          }
+        },
+        "1e9dfb54": {
+          "questionId": "1e9dfb54",
+          "textAnswers": {
+            "answers": [
+              {
+                "value": "test"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
+---
+StartObject: ""
+StartArray: "responses"
+StartObject: ""
+StringValue: "responseId" = "ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA"
+{responses[{responseId="ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA"
+StringValue: "createTime" = "2024-06-19T16:05:51.394Z"
+{responses[{createTime="2024-06-19T16:05:51.394Z"
+StringValue: "lastSubmittedTime" = "2024-06-19T16:05:51.394652Z"
+{responses[{lastSubmittedTime="2024-06-19T16:05:51.394652Z"
+StartObject: "answers"
+StartObject: "704f9a53"
+StringValue: "questionId" = "704f9a53"
+{responses[{answers{704f9a53{questionId="704f9a53"
+StartObject: "textAnswers"
+StartArray: "answers"
+StartObject: ""
+StringValue: "value" = "soramimi"
+{responses[{answers{704f9a53{textAnswers{answers[{value="soramimi"
+EndObject: ""
+EndArray: "answers"
+EndObject: "textAnswers"
+EndObject: "704f9a53"
+StartObject: "4842f816"
+StringValue: "questionId" = "4842f816"
+{responses[{answers{4842f816{questionId="4842f816"
+StartObject: "textAnswers"
+StartArray: "answers"
+StartObject: ""
+StringValue: "value" = "L"
+{responses[{answers{4842f816{textAnswers{answers[{value="L"
+EndObject: ""
+EndArray: "answers"
+EndObject: "textAnswers"
+EndObject: "4842f816"
+StartObject: "1e9dfb54"
+StringValue: "questionId" = "1e9dfb54"
+{responses[{answers{1e9dfb54{questionId="1e9dfb54"
+StartObject: "textAnswers"
+StartArray: "answers"
+StartObject: ""
+StringValue: "value" = "test"
+{responses[{answers{1e9dfb54{textAnswers{answers[{value="test"
+EndObject: ""
+EndArray: "answers"
+EndObject: "textAnswers"
+EndObject: "1e9dfb54"
+EndObject: "answers"
+EndObject: ""
+EndArray: "responses"
+EndObject: ""

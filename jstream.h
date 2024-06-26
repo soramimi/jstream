@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <string_view>
 
 namespace jstream {
 
@@ -518,19 +519,21 @@ public:
 			if (s.empty()) break;
 			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
 				if (path[1] == 0) {
-					if (i + 1 == d.depth.size()) {
-						if (vals) {
-							std::string t;
-							while (i < d.depth.size()) {
-								t += d.depth[i];
-								i++;
+					if (state() == StartObject) {
+						if (i + 1 == d.depth.size()) {
+							if (vals) {
+								std::string t;
+								while (i < d.depth.size()) {
+									t += d.depth[i];
+									i++;
+								}
+								if (isvalue()) {
+									t += d.key;
+								}
+								vals->push_back(t);
 							}
-							if (isvalue()) {
-								t += d.key;
-							}
-							vals->push_back(t);
+							return true;
 						}
-						return true;
 					}
 					return false;
 				}
@@ -589,6 +592,16 @@ public:
 				match(t.first.data(), t.second, false);
 			}
 		}
+	}
+
+	bool match_end_object(char const *path) const
+	{
+		return state() == EndObject && match(path);
+	}
+
+	bool match_end_array(char const *path) const
+	{
+		return state() == EndArray && match(path);
 	}
 };
 

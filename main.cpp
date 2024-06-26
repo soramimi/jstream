@@ -19,7 +19,7 @@ struct GoogleAccessToken {
 		std::string ret;
 
 		jstream::Writer w([&](char const *p, int n){
-			ret += {p, n};
+			ret += std::string{p, (size_t)n};
 		});
 
 		w.object({}, [&](){
@@ -95,121 +95,12 @@ GoogleAccessToken parse_google_access_token2()
 	return out;
 }
 
-void main2()
-{
-	std::string input = R"---(
-{
-  "items": {
-	"hoge": {
-	  "name": [
-        "aaa",
-        "bbb",
-        "ccc"
-      ]
-	},
-	"fuga": {
-	  "name": "bar"
-	}
-  }
-}
-)---";
-
-	std::vector<std::string> hogenames;
-	std::vector<std::string> fuganames;
-	jstream::Reader::rule_for_strings_t rule;
-	rule["{items{hoge{name["] = &hogenames;
-	rule["{items{fuga{name"] = &fuganames;
-
-	jstream::Reader json(input.c_str(), input.size());
-	json.parse(rule);
-
-	for (auto const &s : hogenames) {
-		puts(s.c_str());
-	}
-
-	for (auto const &s : fuganames) {
-		puts(s.c_str());
-	}
-
-}
-
-void main3()
-{
-	std::string input = R"---(
-{
-  "items": {
-	"hoge": {
-	  "name": [
-        "aaa",
-        "bbb",
-        "ccc"
-      ]
-	},
-	"fuga": {
-	  "name": "bar"
-	}
-  }
-}
-)---";
-
-	std::vector<std::string> hogenames;
-	std::vector<std::string> fuganames;
-	jstream::Reader::rule_for_strings_t rule;
-	rule["{items{*{name["] = &hogenames;
-	rule["{items{*{name"] = &fuganames;
-
-	jstream::Reader json(input.c_str(), input.size());
-	json.parse(rule);
-
-	for (auto const &s : hogenames) {
-		puts(s.c_str());
-	}
-
-	for (auto const &s : fuganames) {
-		puts(s.c_str());
-	}
-
-}
-
-void main4()
-{
-	std::string input = R"---(
-{
-  "items": {
-	"hoge": {
-	  "name": [
-        "aaa",
-        "bbb",
-        "ccc"
-      ]
-	},
-	"fuga": {
-	  "name": "bar"
-	}
-  }
-}
-)---";
-
-	std::string hogename;
-	std::string fuganame;
-	jstream::Reader::rule_for_string_t rule;
-	rule["{items{hoge{name["] = &hogename;
-	rule["{items{fuga{name"] = &fuganame;
-
-	jstream::Reader json(input.c_str(), input.size());
-	json.parse(rule);
-
-	puts(hogename.c_str());
-	puts(fuganame.c_str());
-
-}
-
 int main()
 {
-#if 0
-	main4();
-#elif 0
+#if 1
 	test_all();
+#elif 1
+	main2();
 #else
 	auto t = parse_google_access_token();
 	std::cout << t;
