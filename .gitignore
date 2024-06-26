@@ -5,3 +5,4 @@ jstream.exe
 jstream.ilk
 a.out
 *.o
+build/
