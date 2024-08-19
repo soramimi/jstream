@@ -183,7 +183,6 @@ private:
 		char const *begin = nullptr;
 		char const *end = nullptr;
 		char const *ptr = nullptr;
-		bool easy_mode = false;
 		std::vector<StateItem> states;
 		std::string key;
 		std::string string;
@@ -244,24 +243,11 @@ private:
 		return f;
 	}
 
-	bool is_easy_mode() const
+	void parse(std::string_view const &sv)
 	{
-		return d.easy_mode;
+		parse(sv.data(), sv.data() + sv.size());
 	}
 
-public:
-	Reader(char const *begin, char const *end)
-	{
-		parse(begin, end);
-	}
-	Reader(char const *ptr, int len = -1)
-	{
-		parse(ptr, len);
-	}
-	void set_easy_mode(bool easy)
-	{
-		d.easy_mode = easy;
-	}
 	void parse(char const *begin, char const *end)
 	{
 		d = {};
@@ -269,12 +255,26 @@ public:
 		d.end = end;
 		d.ptr = d.begin;
 	}
+
 	void parse(char const *ptr, int len = -1)
 	{
 		if (len < 0) {
 			len = strlen(ptr);
 		}
 		parse(ptr, ptr + len);
+	}
+public:
+	Reader(std::string_view const &sv)
+	{
+		parse(sv);
+	}
+	Reader(char const *begin, char const *end)
+	{
+		parse(begin, end);
+	}
+	Reader(char const *ptr, int len = -1)
+	{
+		parse(ptr, len);
 	}
 	bool next()
 	{
@@ -407,9 +407,6 @@ public:
 					}
 				}
 			}
-			if (is_easy_mode() && state() == Comma) {
-				return true;
-			}
 			d.states.clear();
 			push_state(Error);
 			d.string = "syntax error";
@@ -518,11 +515,11 @@ public:
 		return path + d.key;
 	}
 
-	std::string raw()
+	std::string_view raw()
 	{
 		if (d.last_state.ptr) {
 			size_t n = d.ptr - d.last_state.ptr;
-			return std::string(d.last_state.ptr, n);
+			return std::string_view(d.last_state.ptr, n);
 		}
 		return {};
 	}
