@@ -11,14 +11,13 @@
 
 namespace jstream {
 
-enum Symbol {
-	None,
+enum StateType {
+	// Symbols
+	None = 0,
 	Null,
 	False,
 	True,
-};
-
-enum StateType {
+	// States
 	Key = 100,
 	Comma,
 	StartObject,
@@ -170,21 +169,32 @@ private:
 		return 0;
 	}
 private:
+	struct StateItem {
+		StateType type = None;
+		char const *ptr = nullptr;
+		StateItem() = default;
+		StateItem(StateType type, char const *ptr = nullptr)
+			: type(type)
+			, ptr(ptr)
+		{
+		}
+	};
 	struct ParserData {
 		char const *begin = nullptr;
 		char const *end = nullptr;
 		char const *ptr = nullptr;
 		bool easy_mode = false;
-		std::vector<StateType> states;
+		std::vector<StateItem> states;
 		std::string key;
 		std::string string;
 		double number = 0;
 		bool is_array = false;
 		std::vector<std::string> depth;
+		StateItem last_state;
 	};
 	ParserData d;
 
-	void push_state(StateType s)
+	void push_state(StateItem s)
 	{
 		if (state() == Key || state() == Comma || state() == EndObject) {
 			d.states.pop_back();
@@ -195,7 +205,7 @@ private:
 			d.key.clear();
 		}
 
-		switch (s) {
+		switch (s.type) {
 		case StartArray:
 			d.is_array = true;
 			break;
@@ -210,16 +220,17 @@ private:
 	{
 		bool f = false;
 		if (!d.states.empty()) {
+			d.last_state = d.states.back();
 			d.states.pop_back();
 			size_t i = d.states.size();
 			while (i > 0) {
 				i--;
 				auto s = d.states[i];
-				if (s == StartArray) {
+				if (s.type == StartArray) {
 					d.is_array = true;
 					break;
 				}
-				if (s == StartObject || s == Key) {
+				if (s.type == StartObject || s.type == Key) {
 					d.is_array = false;
 					break;
 				}
@@ -326,23 +337,23 @@ public:
 				push_state(Comma);
 			}
 			if (*d.ptr == '{') {
-				d.ptr++;
+				char const *p = d.ptr++;
 				if (state() != Key) {
 					d.key.clear();
 					d.string.clear();
 				}
 				d.depth.push_back(d.key + '{');
-				push_state(StartObject);
+				push_state({StartObject, p});
 				return true;
 			}
 			if (*d.ptr == '[') {
-				d.ptr++;
+				char const *p = d.ptr++;
 				if (state() != Key) {
 					d.key.clear();
 					d.string.clear();
 				}
 				d.depth.push_back(d.key + '[');
-				push_state(StartArray);
+				push_state({StartArray, p});
 				return true;
 			}
 			if (*d.ptr == '\"') {
@@ -382,15 +393,15 @@ public:
 					if (state() == Key || state() == Comma || state() == StartArray) {
 						d.ptr += n;
 						if (d.string == "false") {
-							push_state((StateType)False);
+							push_state(False);
 							return true;
 						}
 						if (d.string == "true") {
-							push_state((StateType)True);
+							push_state(True);
 							return true;
 						}
 						if (d.string == "null") {
-							push_state((StateType)Null);
+							push_state(Null);
 							return true;
 						}
 					}
@@ -408,7 +419,7 @@ public:
 
 	StateType state() const
 	{
-		return d.states.empty() ? (StateType)None : d.states.back();
+		return d.states.empty() ? None : d.states.back().type;
 	}
 
 	bool isobject() const
@@ -421,7 +432,7 @@ public:
 		case EndArray:
 			if (d.states.size() > 1) {
 				auto s = d.states[d.states.size() - 2];
-				switch (s) {
+				switch (s.type) {
 				case StartObject:
 				case StartArray:
 					return true;
@@ -455,15 +466,15 @@ public:
 		return d.string;
 	}
 
-	Symbol symbol() const
+	StateType symbol() const
 	{
-		int s = state();
+		StateType s = state();
 
 		switch (s) {
 		case Null:
 		case False:
 		case True:
-			return (Symbol)s;
+			return s;
 		}
 		return None;
 	}
@@ -505,6 +516,15 @@ public:
 			path += s;
 		}
 		return path + d.key;
+	}
+
+	std::string raw()
+	{
+		if (d.last_state.ptr) {
+			size_t n = d.ptr - d.last_state.ptr;
+			return std::string(d.last_state.ptr, n);
+		}
+		return {};
 	}
 
 	bool match(char const *path, std::vector<std::string> *vals = nullptr, bool clear = true) const
@@ -844,7 +864,7 @@ public:
 		});
 	}
 
-	void symbol(Symbol v, std::string const &name = {})
+	void symbol(StateType v, std::string const &name = {})
 	{
 		printValue(name, [&](){
 			switch (v) {
