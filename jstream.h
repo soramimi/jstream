@@ -534,7 +534,7 @@ public:
 		for (i = 0; i < d.depth.size(); i++) {
 			std::string const &s = d.depth[i];
 			if (s.empty()) break;
-			if (path[0] == '*' && (path[1] == 0 || path[1] == '{') && s.c_str()[s.size() - 1] == '{') {
+			if (path[0] == '*' && s.c_str()[s.size() - 1] == '{') {
 				if (path[1] == 0) {
 					if (state() == StartObject) {
 						if (i + 1 == d.depth.size()) {
@@ -553,9 +553,10 @@ public:
 						}
 					}
 					return false;
+				} else if (path[1] == '{') {
+					path += 2;
+					continue;
 				}
-				path += 2;
-				continue;
 			}
 			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
 			path += s.size();
