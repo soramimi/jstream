@@ -512,6 +512,9 @@ public:
 		for (std::string const &s : d.depth) {
 			path += s;
 		}
+		if (state() == jstream::StartObject) { // 2025-04-06
+			return path;
+		}
 		return path + d.key;
 	}
 
