@@ -657,8 +657,20 @@ private:
 	std::vector<int> stack;
 	std::function<void (char const *p, int n)> output_fn;
 
+	bool enable_indent_ = true;
+	bool enable_new_line_ = true;
+
+	void printNewLine()
+	{
+		if (!enable_new_line_) return;
+
+		print('\n');
+	}
+
 	void printIndent()
 	{
+		if (!enable_indent_) return;
+
 		size_t n = stack.size() - 1;
 		for (size_t i = 0; i < n; i++) {
 			print(' ');
@@ -780,7 +792,7 @@ private:
 
 	void endBlock()
 	{
-		print('\n');
+		printNewLine();
 		if (!stack.empty()) {
 			stack.pop_back();
 			if (!stack.empty()) stack.back()++;
@@ -797,8 +809,18 @@ public:
 	~Writer()
 	{
 		if (!stack.empty() && stack.front() > 0) {
-			print('\n');
+			printNewLine();
 		}
+	}
+
+	void enableIndent(bool enabled)
+	{
+		enable_indent_ = enabled;
+	}
+
+	void enableNewLine(bool enabled)
+	{
+		enable_new_line_ = enabled;
 	}
 
 	void printName(std::string const &name)
@@ -809,13 +831,15 @@ public:
 			}
 		}
 		if (stack.size() > 1) {
-			print('\n');
+			printNewLine();
 		}
 		printIndent();
 		if (!name.empty()) {
 			printString(name);
 			print(':');
-			print(' ');
+			if (enable_indent_) {
+				print(' ');
+			}
 		}
 	}
 
@@ -851,21 +875,31 @@ public:
 		printArray(name, fn);
 	}
 
-	void number(double v, std::string const &name = {})
+	void number(std::string const &name, double v)
 	{
 		printValue(name, [&](){
 			printNumber(v);
 		});
 	}
 
-	void string(std::string const &s, std::string const &name = {})
+	void number(double v)
+	{
+		number({}, v);
+	}
+
+	void string(std::string const &name, std::string const &s)
 	{
 		printValue(name, [&](){
 			printString(s);
 		});
 	}
 
-	void symbol(StateType v, std::string const &name = {})
+	void string(std::string const &s)
+	{
+		string({}, s);
+	}
+
+	void symbol(std::string const &name, StateType v)
 	{
 		printValue(name, [&](){
 			switch (v) {
@@ -882,14 +916,14 @@ public:
 		});
 	}
 
-	void boolean(bool b, std::string const &name = {})
+	void boolean(std::string const &name, bool b)
 	{
-		symbol(b ? True : False, name);
+		symbol(name, b ? True : False);
 	}
 
 	void null()
 	{
-		symbol(Null);
+		symbol({}, Null);
 	}
 };
 
