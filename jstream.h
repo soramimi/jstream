@@ -4,10 +4,10 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <string>
-#include <vector>
 #include <map>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace jstream {
 
@@ -419,6 +419,16 @@ public:
 		return d.states.empty() ? None : d.states.back().type;
 	}
 
+	bool is_start_object() const
+	{
+		return state() == StartObject;
+	}
+
+	bool is_end_object() const
+	{
+		return state() == EndObject;
+	}
+
 	bool isobject() const
 	{
 		switch (state()) {
@@ -664,16 +674,16 @@ private:
 	std::function<void (char const *p, int n)> output_fn;
 
 	bool enable_indent_ = true;
-	bool enable_new_line_ = true;
+	bool enable_newline_ = true;
 
 	void printNewLine()
 	{
-		if (!enable_new_line_) return;
+		if (!enable_newline_) return;
 
 		print('\n');
 	}
 
-	void printIndent()
+	void print_indent()
 	{
 		if (!enable_indent_) return;
 
@@ -684,7 +694,7 @@ private:
 		}
 	}
 
-	void printNumber(double v)
+	void print_number(double v)
 	{
 		char tmp[100];
 		sprintf(tmp, "%f", v);
@@ -702,7 +712,7 @@ private:
 		print(tmp);
 	}
 
-	void printString(std::string const &s)
+	void print_string(std::string const &s)
 	{
 		char const *ptr = s.c_str();
 		char const *end = ptr + s.size();
@@ -765,45 +775,45 @@ private:
 		print('\"');
 	}
 
-	void printValue(std::string const &name, std::function<void ()> const &fn)
+	void print_value(std::string const &name, std::function<void ()> const &fn)
 	{
-		printName(name);
+		print_name(name);
 
 		fn();
 
 		if (!stack.empty()) stack.back()++;
 	}
 
-	void printObject(std::string const &name = {}, std::function<void ()> const &fn = {})
+	void print_object(std::string const &name = {}, std::function<void ()> const &fn = {})
 	{
-		printName(name);
+		print_name(name);
 		print('{');
 		stack.push_back(0);
 		if (fn) {
 			fn();
-			endObject();
+			end_object();
 		}
 	}
 
-	void printArray(std::string const &name = {}, std::function<void ()> const &fn = {})
+	void print_array(std::string const &name = {}, std::function<void ()> const &fn = {})
 	{
-		printName(name);
+		print_name(name);
 		print('[');
 		stack.push_back(0);
 		if (fn) {
 			fn();
-			endArray();
+			end_array();
 		}
 	}
 
-	void endBlock()
+	void end_block()
 	{
 		printNewLine();
 		if (!stack.empty()) {
 			stack.pop_back();
 			if (!stack.empty()) stack.back()++;
 		}
-		printIndent();
+		print_indent();
 	}
 public:
 	Writer(std::function<void (char const *p, int n)> fn = {})
@@ -819,17 +829,17 @@ public:
 		}
 	}
 
-	void enableIndent(bool enabled)
+	void enable_indent(bool enabled)
 	{
 		enable_indent_ = enabled;
 	}
 
-	void enableNewLine(bool enabled)
+	void enable_newline(bool enabled)
 	{
-		enable_new_line_ = enabled;
+		enable_newline_ = enabled;
 	}
 
-	void printName(std::string const &name)
+	void print_name(std::string const &name)
 	{
 		if (!stack.empty()) {
 			if (stack.back() > 0) {
@@ -839,9 +849,9 @@ public:
 		if (stack.size() > 1) {
 			printNewLine();
 		}
-		printIndent();
+		print_indent();
 		if (!name.empty()) {
-			printString(name);
+			print_string(name);
 			print(':');
 			if (enable_indent_) {
 				print(' ');
@@ -849,42 +859,42 @@ public:
 		}
 	}
 
-	void startObject(std::string const &name = {})
+	void start_object(std::string const &name = {})
 	{
-		printObject(name);
+		print_object(name);
 	}
 
-	void endObject()
+	void end_object()
 	{
-		endBlock();
+		end_block();
 		print('}');
 	}
 
 	void object(std::string const &name, std::function<void ()> const &fn)
 	{
-		printObject(name, fn);
+		print_object(name, fn);
 	}
 
-	void startArray(std::string const &name = {})
+	void start_array(std::string const &name = {})
 	{
-		printArray(name, {});
+		print_array(name, {});
 	}
 
-	void endArray()
+	void end_array()
 	{
-		endBlock();
+		end_block();
 		print(']');
 	}
 
 	void array(std::string const &name, std::function<void ()> const &fn)
 	{
-		printArray(name, fn);
+		print_array(name, fn);
 	}
 
 	void number(std::string const &name, double v)
 	{
-		printValue(name, [&](){
-			printNumber(v);
+		print_value(name, [&](){
+			print_number(v);
 		});
 	}
 
@@ -895,8 +905,8 @@ public:
 
 	void string(std::string const &name, std::string const &s)
 	{
-		printValue(name, [&](){
-			printString(s);
+		print_value(name, [&](){
+			print_string(s);
 		});
 	}
 
@@ -907,7 +917,7 @@ public:
 
 	void symbol(std::string const &name, StateType v)
 	{
-		printValue(name, [&](){
+		print_value(name, [&](){
 			switch (v) {
 				break;
 			case False:
