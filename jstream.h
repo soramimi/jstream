@@ -55,9 +55,7 @@ public:
 	 * @param nptr   Pointer to NUL‑terminated text to parse.
 	 * @param endptr If non‑NULL, receives a pointer to the first character
 	 *               following the parsed number (or `nptr` on failure).
-	 * @return The parsed value.  On overflow/underflow `errno` is set to
-	 *         `ERANGE` and the function returns ±`HUGE_VAL` or ±0.0,
-	 *         mirroring the behaviour of the C standard `strtod`.
+	 * @return The parsed value.
 	 */
 	static double my_strtod(const char *nptr, char **endptr)
 	{
@@ -235,7 +233,22 @@ private:
 		*out = 0;
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
+
 		std::vector<char> vec;
+
+		if (d.allow_hexadicimal) {
+			if (ptr + 1 < end && *ptr == '0' && (ptr[1] == 'x' || ptr[1] == 'X')) {
+				ptr += 2;
+				while (ptr < end && isxdigit((unsigned char)*ptr)) {
+					vec.push_back(*ptr);
+					ptr++;
+				}
+				vec.push_back(0);
+				*out = strtoll(vec.data(), nullptr, 16);
+				return ptr - begin;
+			}
+		}
+
 		while (ptr < end) {
 			char c = *ptr;
 			if (isdigit((unsigned char)c) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E') {
@@ -360,6 +373,7 @@ private:
 		bool allow_comments = false;
 		bool allow_ambiguous_comma = false;
 		bool allow_unquoted_key = false;
+		bool allow_hexadicimal = false;
 		std::vector<std::string> depth;
 		StateItem last_state;
 	};
@@ -459,6 +473,10 @@ public:
 	void allow_unquoted_key(bool allow)
 	{
 		d.allow_unquoted_key = allow;
+	}
+	void allow_hexadicimal(bool allow)
+	{
+		d.allow_hexadicimal = allow;
 	}
 	bool next()
 	{
