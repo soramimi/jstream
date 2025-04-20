@@ -237,15 +237,22 @@ private:
 		std::vector<char> vec;
 
 		if (d.allow_hexadicimal) {
-			if (ptr + 1 < end && *ptr == '0' && (ptr[1] == 'x' || ptr[1] == 'X')) {
-				ptr += 2;
-				while (ptr < end && isxdigit((unsigned char)*ptr)) {
-					vec.push_back(*ptr);
-					ptr++;
+			char const *p = ptr;
+			bool sign = false;
+			if (p + 1 < end && *p == '-') {
+				p++;
+				sign = true;
+			}
+			if (p + 1 < end && *p == '0' && (p[1] == 'x' || p[1] == 'X')) {
+				p += 2;
+				while (p < end && isxdigit((unsigned char)*p)) {
+					vec.push_back(*p);
+					p++;
 				}
 				vec.push_back(0);
-				*out = strtoll(vec.data(), nullptr, 16);
-				return ptr - begin;
+				long long v = strtoll(vec.data(), nullptr, 16);
+				*out = sign ? -v : v;
+				return p - begin;
 			}
 		}
 
@@ -651,8 +658,6 @@ public:
 					push_state(Number);
 					return true;
 				}
-				// if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
-				// }
 				if (isalpha((unsigned char)*d.ptr)) {
 					auto n = parse_symbol(d.ptr, d.end, &d.string);
 					if (n > 0) {
