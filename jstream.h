@@ -185,7 +185,7 @@ private:
 				ptr++;
 				continue;
 			}
-			if (d.allow_comments && *ptr == '/' && ptr + 1 < end) {
+			if (d.allow_comment && *ptr == '/' && ptr + 1 < end) {
 				if (ptr[1] == '/') {
 					ptr += 2;
 					while (ptr < end && *ptr != '\r' && *ptr != '\n') {
@@ -249,6 +249,30 @@ private:
 			}
 		}
 
+		if (d.allow_special_constant) {
+			char const *p = ptr;
+			bool sign = false;
+			if (p < end && *p == '-') {
+				p++;
+				sign = true;
+			}
+			while (p < end && isalpha((unsigned char)*p)) {
+				vec.push_back(*p);
+				p++;
+			}
+			vec.push_back(0);
+			if (strcmp(vec.data(), "Infinity") == 0) {
+				ptr = p;
+				*out = sign ? -INFINITY : INFINITY;
+			} else if (strcmp(vec.data(), "NaN") == 0) {
+				ptr = p;
+				*out = NAN;
+			}
+			if (ptr > begin) {
+				return ptr - begin;
+			}
+		}
+
 		while (ptr < end) {
 			char c = *ptr;
 			if (isdigit((unsigned char)c) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E') {
@@ -291,6 +315,7 @@ private:
 						case 'r': push('\r'); break;
 						case 'f': push('\f'); break;
 						case 't': push('\t'); break;
+						case 'v': push('\v'); break;
 						case '\\':
 						case '\"':
 							push(*ptr);
@@ -370,10 +395,11 @@ private:
 		std::string string;
 		double number = 0;
 		bool is_array = false;
-		bool allow_comments = false;
+		bool allow_comment = false;
 		bool allow_ambiguous_comma = false;
 		bool allow_unquoted_key = false;
 		bool allow_hexadicimal = false;
+		bool allow_special_constant = false;
 		std::vector<std::string> depth;
 		StateItem last_state;
 	};
@@ -462,9 +488,9 @@ public:
 	{
 		parse(ptr, len);
 	}
-	void allow_comments(bool allow)
+	void allow_comment(bool allow)
 	{
-		d.allow_comments = allow;
+		d.allow_comment = allow;
 	}
 	void allow_ambiguous_comma(bool allow)
 	{
@@ -477,6 +503,10 @@ public:
 	void allow_hexadicimal(bool allow)
 	{
 		d.allow_hexadicimal = allow;
+	}
+	void allow_special_constant(bool allow)
+	{
+		d.allow_special_constant = allow;
 	}
 	bool next()
 	{
@@ -614,15 +644,15 @@ public:
 				}
 			}
 			if (state() == Key || isarray()) {
-				if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
-					auto n = parse_number(d.ptr, d.end, &d.number);
-					if (n > 0) {
-						d.string.assign(d.ptr, n);
-						d.ptr += n;
-						push_state(Number);
-						return true;
-					}
+				auto n = parse_number(d.ptr, d.end, &d.number);
+				if (n > 0) {
+					d.string.assign(d.ptr, n);
+					d.ptr += n;
+					push_state(Number);
+					return true;
 				}
+				// if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
+				// }
 				if (isalpha((unsigned char)*d.ptr)) {
 					auto n = parse_symbol(d.ptr, d.end, &d.string);
 					if (n > 0) {
