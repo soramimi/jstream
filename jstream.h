@@ -80,7 +80,7 @@ private:
 		ptr += scan_space(ptr, end);
 		std::vector<char> vec;
 		while (ptr < end) {
-			if (!isalnum((unsigned char)*ptr)) break;
+			if (!isalnum((unsigned char)*ptr) && *ptr != '_') break;
 			vec.push_back(*ptr);
 			ptr++;
 		}
@@ -216,6 +216,7 @@ private:
 		bool is_array = false;
 		bool allow_comments = false;
 		bool allow_ambiguous_comma = false;
+		bool allow_unquoted_key = false;
 		std::vector<std::string> depth;
 		StateItem last_state;
 	};
@@ -311,6 +312,10 @@ public:
 	void allow_ambiguous_comma(bool allow)
 	{
 		d.allow_ambiguous_comma = allow;
+	}
+	void allow_unquoted_key(bool allow)
+	{
+		d.allow_unquoted_key = allow;
 	}
 	bool next()
 	{
@@ -447,32 +452,45 @@ public:
 					}
 				}
 			}
-			if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
-				auto n = parse_number(d.ptr, d.end, &d.number);
-				if (n > 0) {
-					d.string.assign(d.ptr, n);
-					d.ptr += n;
-					push_state(Number);
-					return true;
+			if (state() == Key || isarray()) {
+				if (isdigit((unsigned char)*d.ptr) || *d.ptr == '-') {
+					auto n = parse_number(d.ptr, d.end, &d.number);
+					if (n > 0) {
+						d.string.assign(d.ptr, n);
+						d.ptr += n;
+						push_state(Number);
+						return true;
+					}
 				}
-			}
-			if (isalpha((unsigned char)*d.ptr)) {
+				if (isalpha((unsigned char)*d.ptr)) {
+					auto n = parse_symbol(d.ptr, d.end, &d.string);
+					if (n > 0) {
+						if (state() == Key || state() == Comma || state() == StartArray) {
+							d.ptr += n;
+							if (d.string == "false") {
+								push_state(False);
+								return true;
+							}
+							if (d.string == "true") {
+								push_state(True);
+								return true;
+							}
+							if (d.string == "null") {
+								push_state(Null);
+								return true;
+							}
+						}
+					}
+				}
+			} else if (d.allow_unquoted_key) {
 				auto n = parse_symbol(d.ptr, d.end, &d.string);
 				if (n > 0) {
-					if (state() == Key || state() == Comma || state() == StartArray) {
-						d.ptr += n;
-						if (d.string == "false") {
-							push_state(False);
-							return true;
-						}
-						if (d.string == "true") {
-							push_state(True);
-							return true;
-						}
-						if (d.string == "null") {
-							push_state(Null);
-							return true;
-						}
+					n += scan_space(d.ptr + n, d.end);
+					if (d.ptr[n] == ':') {
+						d.ptr += n + 1;
+						d.key = d.string;
+						push_state(Key);
+						return true;
 					}
 				}
 			}
@@ -617,7 +635,7 @@ public:
 		if (vals && clear) {
 			vals->clear();
 		}
-		if (!(isobject() || isvalue())) return false;
+		if (!isobject() && !isvalue()) return false;
 		size_t i;
 		for (i = 0; i < d.depth.size(); i++) {
 			std::string const &s = d.depth[i];

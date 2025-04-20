@@ -274,11 +274,11 @@ struct GoogleAccessToken {
 		});
 
 		w.object({}, [&](){
-			w.string(access_token, "access_token");
-			w.string(expires_in, "expires_in");
-			w.string(scope, "scope");
-			w.string(token_type, "token_type");
-			w.string(id_token, "id_token");
+			w.string("access_token", access_token);
+			w.string("expires_in", expires_in);
+			w.string("scope", scope);
+			w.string("token_type", token_type);
+			w.string("id_token", id_token);
 		});
 
 		return ret;
@@ -296,7 +296,7 @@ GoogleAccessToken test_google_access_token()
 {
 	std::string input = R"---(
 {
-"access_token": "qwerty123"
+"access_token": "qwerty123",
 "expires_in": 3599,
 "scope": "https://www.googleapis.com/auth/userinfo.profile",
 "token_type": "Bearer",
@@ -305,7 +305,7 @@ GoogleAccessToken test_google_access_token()
 )---";
 
 	GoogleAccessToken out;
-	jstream::Reader reader(input.c_str(), input.size());
+	jstream::Reader reader(input);
 	while (reader.next()) {
 		if (reader.match("{access_token")) {
 			out.access_token = reader.string();
@@ -336,7 +336,7 @@ GoogleAccessToken test_google_access_token2()
 
 	GoogleAccessToken out;
 	jstream::Reader::rule_for_string_t rule;
-	jstream::Reader reader(input.c_str(), input.size());
+	jstream::Reader reader(input);
 	rule["{access_token"] = &out.access_token;
 	rule["{expires_in"] = &out.expires_in;
 	rule["{scope"] = &out.scope;
@@ -357,7 +357,7 @@ int main()
 	test_all(true);
 #elif 0
 	main2();
-#elif 1
+#elif 0
 	test_mcp();
 #else
 	auto t = test_google_access_token();
