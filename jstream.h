@@ -985,9 +985,13 @@ private:
 
 	void print_number(double v)
 	{
-		char tmp[100];
+		char tmp[400];
 		sprintf(tmp, "%f", v);
 		char *ptr = strchr(tmp, '.');
+		if (!ptr) {
+			ptr = strchr(tmp, ',');
+			*ptr = '.';
+		}
 		if (ptr) {
 			char *end = ptr + strlen(ptr);
 			while (ptr < end && end[-1] == '0') {
