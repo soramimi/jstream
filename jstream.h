@@ -990,7 +990,9 @@ private:
 		char *ptr = strchr(tmp, '.');
 		if (!ptr) {
 			ptr = strchr(tmp, ',');
-			*ptr = '.';
+			if (ptr) {
+				*ptr = '.';
+			}
 		}
 		if (ptr) {
 			char *end = ptr + strlen(ptr);

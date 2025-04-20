@@ -349,6 +349,13 @@ GoogleAccessToken test_google_access_token2()
 
 void main2()
 {
+	setlocale(LC_ALL, "fr-FR");
+	jstream::Writer w([](char const *p, int n) {
+		fwrite(p, 1, n, stdout);
+	});
+	w.object({}, [&]() {
+		w.number("num", 123456.789);
+	});
 }
 
 int main()
