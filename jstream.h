@@ -215,6 +215,7 @@ private:
 		double number = 0;
 		bool is_array = false;
 		bool allow_comments = false;
+		bool allow_ambiguous_comma = false;
 		std::vector<std::string> depth;
 		StateItem last_state;
 	};
@@ -303,14 +304,24 @@ public:
 	{
 		parse(ptr, len);
 	}
-	void set_allow_comments(bool allow)
+	void allow_comments(bool allow)
 	{
 		d.allow_comments = allow;
 	}
+	void allow_ambiguous_comma(bool allow)
+	{
+		d.allow_ambiguous_comma = allow;
+	}
 	bool next()
 	{
-		d.ptr += scan_space(d.ptr, d.end);
-		if (d.ptr < d.end) {
+		while (d.ptr < d.end) {
+			{
+				auto n = scan_space(d.ptr, d.end);;
+				if (n > 0) {
+					d.ptr += n;
+					continue;
+				}
+			}
 			if (*d.ptr == '}') {
 				d.ptr++;
 				d.string.clear();
@@ -361,11 +372,20 @@ public:
 			}
 			if (*d.ptr == ',') {
 				d.ptr++;
+				if (state() == Key) {
+					push_state(Null);
+					return true;
+				}
 				d.ptr += scan_space(d.ptr, d.end);
 				if (isobject() || isvalue()) {
 					pop_state();
 				}
 				push_state(Comma);
+				if (d.allow_ambiguous_comma) {
+					continue;
+				} else {
+					// if not allow_ambiguous_comma, fall through
+				}
 			}
 			if (*d.ptr == '{') {
 				char const *p = d.ptr++;
@@ -388,6 +408,24 @@ public:
 				return true;
 			}
 			if (*d.ptr == '\"') {
+				switch (state()) {
+				case None:
+				case StartObject:
+				case StartArray:
+				case Key:
+				case Comma:
+					// thru
+					break;
+				default:
+					if (d.allow_ambiguous_comma) {
+						break; // consider as a virtual comma is exists
+					}
+					d.states.clear();
+					push_state(Error);
+					d.string = "syntax error";
+					return false;
+				}
+
 				auto n = parse_string(d.ptr, d.end, &d.string);
 				if (n > 0) {
 					if (isarray()) {
@@ -441,6 +479,7 @@ public:
 			d.states.clear();
 			push_state(Error);
 			d.string = "syntax error";
+			break;
 		}
 		return false;
 	}
@@ -448,6 +487,11 @@ public:
 	StateType state() const
 	{
 		return d.states.empty() ? None : d.states.back().type;
+	}
+
+	bool iserror() const
+	{
+		return state() == Error;
 	}
 
 	bool is_start_object() const
@@ -707,7 +751,7 @@ private:
 	bool enable_indent_ = true;
 	bool enable_newline_ = true;
 
-	void printNewLine()
+	void print_newline()
 	{
 		if (!enable_newline_) return;
 
@@ -839,7 +883,7 @@ private:
 
 	void end_block()
 	{
-		printNewLine();
+		print_newline();
 		if (!stack.empty()) {
 			stack.pop_back();
 			if (!stack.empty()) stack.back()++;
@@ -856,7 +900,7 @@ public:
 	~Writer()
 	{
 		if (!stack.empty() && stack.front() > 0) {
-			printNewLine();
+			print_newline();
 		}
 	}
 
@@ -878,7 +922,7 @@ public:
 			}
 		}
 		if (stack.size() > 1) {
-			printNewLine();
+			print_newline();
 		}
 		print_indent();
 		if (!name.empty()) {
