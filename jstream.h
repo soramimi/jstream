@@ -1,6 +1,7 @@
 #ifndef JSTREAM_H_
 #define JSTREAM_H_
 
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -9,7 +10,144 @@
 #include <string_view>
 #include <vector>
 
+// #include <charconv> // C++17
+
 namespace jstream {
+
+class misc {
+private:
+	/**
+	 * @brief Return 10 raised to an integer power.
+	 *
+	 * A small lookup table is used for the most common range to avoid
+	 * calling the comparatively expensive `pow()` routine.  Values outside
+	 * the table range fall back to `pow(10.0, exp)`.
+	 *
+	 * @param exp Decimal exponent (positive or negative).
+	 * @return The value 10^exp as a double.
+	 */
+	static double pow10_int(int exp)
+	{
+		// Pre‑computed powers for |exp| ≤ 16
+		static const double tbl[] = {
+			1e+00, 1e+01, 1e+02, 1e+03, 1e+04, 1e+05, 1e+06,
+			1e+07, 1e+08, 1e+09, 1e+10, 1e+11, 1e+12, 1e+13,
+			1e+14, 1e+15, 1e+16
+		};
+		if (exp >= 0 && exp < static_cast<int>(sizeof tbl / sizeof *tbl))
+			return tbl[exp];
+		if (exp <= 0 && exp > -static_cast<int>(sizeof tbl / sizeof *tbl))
+			return 1.0 / tbl[-exp];
+		// Rare case: delegate to libm
+		return std::pow(10.0, exp);
+	}
+public:
+	/**
+	 * @brief Locale‑independent `strtod` clone.
+	 *
+	 * Parses a floating‑point literal from a C‑string.  Leading white‑space,
+	 * an optional sign, fractional part (with a mandatory '.' as the decimal
+	 * separator), and an optional exponent (`e`/`E`) are recognised.
+	 *
+	 * The implementation **ignores the current locale**; the decimal point
+	 * must be `'.'` and no thousands separators are accepted.
+	 *
+	 * @param nptr   Pointer to NUL‑terminated text to parse.
+	 * @param endptr If non‑NULL, receives a pointer to the first character
+	 *               following the parsed number (or `nptr` on failure).
+	 * @return The parsed value.  On overflow/underflow `errno` is set to
+	 *         `ERANGE` and the function returns ±`HUGE_VAL` or ±0.0,
+	 *         mirroring the behaviour of the C standard `strtod`.
+	 */
+	static double my_strtod(const char *nptr, char **endptr)
+	{
+		const char *s = nptr;
+		bool sign = false;
+		bool saw_digit = false;
+		int frac_digits = 0;
+		long exp_val = 0;
+		bool exp_sign = false;
+		double value = 0.0;
+
+		// Skip leading white‑space
+		while (std::isspace((unsigned char)*s)) ++s;
+
+		// Parse optional sign
+		if (*s == '+' || *s == '-') {
+			if (*s == '-') sign = true;
+			s++;
+		}
+
+		// Integer part
+		while (std::isdigit((unsigned char)*s)) {
+			saw_digit = true;
+			value = value * 10.0 + (*s - '0');
+			s++;
+		}
+
+		// Fractional part
+		if (*s == '.') {
+			s++;
+			while (std::isdigit((unsigned char)*s)) {
+				saw_digit = true;
+				value = value * 10.0 + (*s - '0');
+				s++;
+				frac_digits++;
+			}
+		}
+
+		// No digits at all -> conversion failure
+		if (!saw_digit) {
+			if (endptr) *endptr = const_cast<char *>(nptr);
+			return 0.0;
+		}
+
+		// Exponent part
+		if (*s == 'e' || *s == 'E') {
+			s++;
+			const char *exp_start = s;
+			if (*s == '+' || *s == '-') {
+				if (*s == '-') exp_sign = true;
+				s++;
+			}
+			if (std::isdigit((unsigned char)*s)) {
+				while (std::isdigit((unsigned char)*s)) {
+					exp_val = exp_val * 10 + (*s - '0');
+					s++;
+				}
+				if (exp_sign) {
+					exp_val = -exp_val;
+				}
+			} else {
+				// Roll back if 'e' is not followed by a valid exponent
+				s = exp_start - 1;
+			}
+		}
+
+		// Scale by 10^(exponent − #fractional‑digits)
+		int total_exp = exp_val - frac_digits;
+		if (total_exp != 0) {
+			value *= pow10_int(total_exp);
+		}
+
+		// Apply sign
+		if (sign) {
+			value = -value;
+		}
+
+		// Set errno on overflow/underflow
+		if (!std::isfinite(value)) {
+			// errno = ERANGE;
+			value = sign ? -HUGE_VAL : HUGE_VAL;
+		} else if (value == 0.0 && saw_digit && total_exp != 0) {
+			// errno = ERANGE;  // underflow
+		}
+
+		// Report where parsing stopped
+		if (endptr) *endptr = const_cast<char *>(s);
+		return value;
+	}
+};
 
 enum StateType {
 	// Symbols
@@ -109,7 +247,12 @@ private:
 			ptr++;
 		}
 		vec.push_back(0);
-		*out = strtod(vec.data(), nullptr);
+
+		// use my_strtod instead of strtod, because strtod is locale dependent
+		// *out = strtod(vec.data(), nullptr);
+		// std::from_chars(vec.data(), vec.data() + vec.size(), *out); // C++17
+		*out = misc::my_strtod(vec.data(), nullptr);
+
 		return ptr - begin;
 	}
 
