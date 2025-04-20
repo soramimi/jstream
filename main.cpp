@@ -97,9 +97,9 @@ GoogleAccessToken parse_google_access_token2()
 
 int main()
 {
-#if 1
+#if 0
 	test_all(true);
-#elif 1
+#elif 0
 	main2();
 #else
 	auto t = parse_google_access_token();

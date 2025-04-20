@@ -41,14 +41,40 @@ private:
 		return std::string();
 	}
 
-	static int scan_space(char const *ptr, char const *end)
+	int scan_space(char const *begin, char const *end)
 	{
-		int i;
-		for (i = 0; ptr + i < end && isspace(ptr[i] & 0xff); i++);
-		return i;
+		char const *ptr = begin;
+		while (ptr < end) {
+			if (std::isspace((unsigned char)*ptr)) {
+				ptr++;
+				continue;
+			}
+			if (d.allow_comments && *ptr == '/' && ptr + 1 < end) {
+				if (ptr[1] == '/') {
+					ptr += 2;
+					while (ptr < end && *ptr != '\r' && *ptr != '\n') {
+						ptr++;
+					}
+					continue;
+				}
+				if (ptr[1] == '*') {
+					ptr += 2;
+					while (ptr + 1 < end) {
+						if (*ptr == '*' && ptr[1] == '/') {
+							ptr += 2;
+							break;
+						}
+						ptr++;
+					}
+					continue;
+				}
+			}
+			break;
+		}
+		return ptr - begin;
 	}
 
-	static int parse_symbol(char const *begin, char const *end, std::string *out)
+	int parse_symbol(char const *begin, char const *end, std::string *out)
 	{
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
@@ -66,7 +92,7 @@ private:
 		return 0;
 	}
 
-	static int parse_number(char const *begin, char const *end, double *out)
+	int parse_number(char const *begin, char const *end, double *out)
 	{
 		*out = 0;
 		char const *ptr = begin;
@@ -87,7 +113,7 @@ private:
 		return ptr - begin;
 	}
 
-	static int parse_string(char const *begin, char const *end, std::string *out)
+	int parse_string(char const *begin, char const *end, std::string *out)
 	{
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
@@ -188,6 +214,7 @@ private:
 		std::string string;
 		double number = 0;
 		bool is_array = false;
+		bool allow_comments = false;
 		std::vector<std::string> depth;
 		StateItem last_state;
 	};
@@ -275,6 +302,10 @@ public:
 	Reader(char const *ptr, int len = -1)
 	{
 		parse(ptr, len);
+	}
+	void set_allow_comments(bool allow)
+	{
+		d.allow_comments = allow;
 	}
 	bool next()
 	{
