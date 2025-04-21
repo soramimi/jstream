@@ -253,9 +253,10 @@ public:
 		} else {
 			double t = intval;
 			for (int i = 0; i < intlen; i++) {
-				int c = (int)fmod(t, 10);
-				*--ptr = c + '0';
-				t = (t - c) / 10;
+				t /= 10;
+				double u = floor(t);
+				*--ptr = (char)((t - u) * 10 + 0.49) + '0';
+				t = u;
 			}
 		}
 
