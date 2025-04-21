@@ -6,6 +6,7 @@ a.out: main.o test.o
 	g++ $^
 
 clean:
+	jstream
 	rm -f a.out
 	rm -f *.o
 

@@ -350,6 +350,16 @@ GoogleAccessToken test_google_access_token2()
 void main2()
 {
 	setlocale(LC_ALL, "fr-FR");
+	char const *json = R"---(
+{ "num": 123456.789 }
+)---";
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{num")) {
+			printf("%f\n", r.number());
+		}
+	}
+
 	jstream::Writer w([](char const *p, int n) {
 		fwrite(p, 1, n, stdout);
 	});
@@ -362,7 +372,7 @@ int main()
 {
 #if 1
 	test_all(true);
-#elif 0
+#elif 1
 	main2();
 #elif 0
 	test_mcp();

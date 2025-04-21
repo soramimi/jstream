@@ -145,6 +145,142 @@ public:
 		if (endptr) *endptr = const_cast<char *>(s);
 		return value;
 	}
+
+	static std::string format_double(double val, bool allow_nan)
+	{
+		int precision = 15;
+		bool trim_zeros = true;
+		bool plus = false;
+
+		if (std::isnan(val)) {
+			if (allow_nan) {
+				return "NaN";
+			}
+			return {};
+		}
+		if (std::isinf(val)) {
+			if (allow_nan) {
+				bool sign = std::signbit(val);
+				if (sign) {
+					return "-Infinity";
+				} else {
+					return "Infinity";
+				}
+			}
+			return {};
+		}
+
+		char *ptr, *end;
+
+		char *dot = nullptr;
+
+		bool sign = val < 0;
+		if (sign) {
+			val = -val;
+		}
+
+		double intval = floor(val);
+		val -= intval;
+
+		int intlen = 0;
+		if (intval == 0) {
+			ptr = end = (char *)alloca(precision + 10) + 5;
+		} else {
+			double t = intval;
+			do {
+				t = floor(t / 10);
+				intlen++;
+			} while (t != 0);
+			ptr = end = (char *)alloca(intlen + precision + 10) + intlen + 5;
+		}
+
+		if (precision > 0) {
+			dot = end;
+			*end++ = '.';
+			double v = val;
+			int e = 0;
+			while (v > 0 && v < 1) {
+				v *= 10;
+				e++;
+			}
+			while (v >= 1) {
+				v /= 10;
+				e--;
+			}
+			double add = 0.5;
+			for (int i = 0; i < precision - e; i++) {
+				add /= 10;
+			}
+			v += add;
+			double t = floor(v);
+			intval += t;
+			v -= t;
+			int i = 0;
+			int n = intlen;
+			int r = std::min(e, precision);
+			while (i < r) {
+				*end++ = '0';
+				if (n != 0) {
+					n++;
+				}
+				i++;
+			}
+			while (i < precision) {
+				if (n < 16) {
+					v *= 10;
+					double m = floor(v);
+					v -= m;
+					*end++ = (char)m + '0';
+				} else {
+					*end++ = '0';
+				}
+				n++;
+				i++;
+			}
+		} else {
+			intval += floor(val + 0.5);
+		}
+
+		intlen = 0;
+		double t = intval;
+		do {
+			t = floor(t / 10);
+			intlen++;
+		} while (t != 0);
+
+		if (intval == 0) {
+			*--ptr = '0';
+		} else {
+			double t = intval;
+			for (int i = 0; i < intlen; i++) {
+				int c = (int)fmod(t, 10);
+				*--ptr = c + '0';
+				t = (t - c) / 10;
+			}
+		}
+
+		if (sign) {
+			*--ptr = '-';
+		} else if (plus) {
+			*--ptr = '+';
+		}
+
+		if (trim_zeros && dot) {
+			while (dot < end) {
+				char c = end[-1];
+				if (c == '.') {
+					end--;
+					break;
+				}
+				if (c != '0') {
+					break;
+				}
+				end--;
+			}
+		}
+
+		return std::string(ptr, end - ptr);
+	}
 };
 
 enum StateType {
@@ -964,6 +1100,7 @@ private:
 
 	bool enable_indent_ = true;
 	bool enable_newline_ = true;
+	bool allow_nan_ = false;
 
 	void print_newline()
 	{
@@ -983,31 +1120,18 @@ private:
 		}
 	}
 
-	void print_number(double v)
+	bool print_number(double v)
 	{
-		char tmp[400];
-		sprintf(tmp, "%f", v);
-		char *ptr = strchr(tmp, '.');
-		if (!ptr) {
-			ptr = strchr(tmp, ',');
-			if (ptr) {
-				*ptr = '.';
-			}
+		std::string s = misc::format_double(v, allow_nan_);
+		if (s.empty()) {
+			print("null");
+			return false;
 		}
-		if (ptr) {
-			char *end = ptr + strlen(ptr);
-			while (ptr < end && end[-1] == '0') {
-				end--;
-			}
-			if (ptr + 1 == end) {
-				end--;
-			}
-			*end = 0;
-		}
-		print(tmp);
+		print(s);
+		return true;
 	}
 
-	void print_string(std::string const &s)
+	bool print_string(std::string const &s)
 	{
 		char const *ptr = s.c_str();
 		char const *end = ptr + s.size();
@@ -1068,15 +1192,18 @@ private:
 			print(buf.data(), buf.size());
 		}
 		print('\"');
+		return true;
 	}
 
-	void print_value(std::string const &name, std::function<void ()> const &fn)
+	bool print_value(std::string const &name, std::function<bool ()> const &fn)
 	{
 		print_name(name);
 
-		fn();
+		bool ok = fn();
 
 		if (!stack.empty()) stack.back()++;
+
+		return ok;
 	}
 
 	void print_object(std::string const &name = {}, std::function<void ()> const &fn = {})
@@ -1134,6 +1261,11 @@ public:
 		enable_newline_ = enabled;
 	}
 
+	void allow_nan(bool allow)
+	{
+		allow_nan_ = allow;
+	}
+
 	void print_name(std::string const &name)
 	{
 		if (!stack.empty()) {
@@ -1186,10 +1318,10 @@ public:
 		print_array(name, fn);
 	}
 
-	void number(std::string const &name, double v)
+	bool number(std::string const &name, double v)
 	{
-		print_value(name, [&](){
-			print_number(v);
+		return print_value(name, [&](){
+			return print_number(v);
 		});
 	}
 
@@ -1201,7 +1333,7 @@ public:
 	void string(std::string const &name, std::string const &s)
 	{
 		print_value(name, [&](){
-			print_string(s);
+			return print_string(s);
 		});
 	}
 
@@ -1224,6 +1356,7 @@ public:
 			default:
 				print("null");
 			}
+			return true;
 		});
 	}
 
