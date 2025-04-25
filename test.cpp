@@ -135,8 +135,11 @@ void parse(char const *source, std::string *result1)
 			*result1 += s;
 		}
 	}
-	if (json.state() == jstream::Error) {
-		*result1 += "Error: " + json.string();
+
+	if (json.has_error()) {
+		for (auto const &e : json.errors()) {
+			*result1 += "Error: " + e.what();
+		}
 	}
 }
 

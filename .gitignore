@@ -6,3 +6,4 @@ jstream.ilk
 a.out
 *.o
 build/
+.vscode/

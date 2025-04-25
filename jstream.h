@@ -9,6 +9,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <variant>
+#include <assert.h>
 
 // #include <charconv> // C++17
 
@@ -299,10 +301,14 @@ enum StateType {
 	EndArray,
 	String,
 	Number,
-	Error,
 };
 
 class Reader {
+public:
+	struct Error {
+		std::string what_;
+		std::string what() const { return what_; }
+	};
 private:
 	static std::string to_stdstr(std::vector<char> const &vec)
 	{
@@ -535,6 +541,7 @@ private:
 		char const *end = nullptr;
 		char const *ptr = nullptr;
 		std::vector<StateItem> states;
+		bool hold = false;
 		std::string key;
 		std::string string;
 		double number = 0;
@@ -545,9 +552,20 @@ private:
 		bool allow_hexadicimal = false;
 		bool allow_special_constant = false;
 		std::vector<std::string> depth;
+		std::vector<int> depth_stack;
 		StateItem last_state;
+		std::vector<Error> errors;
 	};
 	ParserData d;
+
+	void push_error(std::string const &what)
+	{
+		d.states.clear();
+
+		Error err;
+		err.what_ = what;
+		d.errors.push_back(err);
+	}
 
 	void push_state(StateItem s)
 	{
@@ -599,17 +617,18 @@ private:
 		return f;
 	}
 
-	void parse(std::string_view const &sv)
-	{
-		parse(sv.data(), sv.data() + sv.size());
-	}
-
 	void parse(char const *begin, char const *end)
 	{
+		reset();
 		d = {};
 		d.begin = begin;
 		d.end = end;
 		d.ptr = d.begin;
+	}
+
+	void parse(std::string_view const &sv)
+	{
+		parse(sv.data(), sv.data() + sv.size());
 	}
 
 	void parse(char const *ptr, int len = -1)
@@ -619,40 +638,8 @@ private:
 		}
 		parse(ptr, ptr + len);
 	}
-public:
-	Reader(std::string_view const &sv)
-	{
-		parse(sv);
-	}
-	Reader(char const *begin, char const *end)
-	{
-		parse(begin, end);
-	}
-	Reader(char const *ptr, int len = -1)
-	{
-		parse(ptr, len);
-	}
-	void allow_comment(bool allow)
-	{
-		d.allow_comment = allow;
-	}
-	void allow_ambiguous_comma(bool allow)
-	{
-		d.allow_ambiguous_comma = allow;
-	}
-	void allow_unquoted_key(bool allow)
-	{
-		d.allow_unquoted_key = allow;
-	}
-	void allow_hexadicimal(bool allow)
-	{
-		d.allow_hexadicimal = allow;
-	}
-	void allow_special_constant(bool allow)
-	{
-		d.allow_special_constant = allow;
-	}
-	bool next()
+
+	bool _internal_next()
 	{
 		while (d.ptr < d.end) {
 			{
@@ -760,9 +747,7 @@ public:
 					if (d.allow_ambiguous_comma) {
 						break; // consider as a virtual comma is exists
 					}
-					d.states.clear();
-					push_state(Error);
-					d.string = "syntax error";
+					push_error("unexpected double quote");
 					return false;
 				}
 
@@ -827,10 +812,69 @@ public:
 					}
 				}
 			}
-			d.states.clear();
-			push_state(Error);
-			d.string = "syntax error";
+			push_error("syntax error");
 			break;
+		}
+		return false;
+	}
+public:
+	Reader(std::string_view const &sv)
+	{
+		parse(sv);
+	}
+	Reader(char const *begin, char const *end)
+	{
+		parse(begin, end);
+	}
+	Reader(char const *ptr, int len = -1)
+	{
+		parse(ptr, len);
+	}
+	void allow_comment(bool allow)
+	{
+		d.allow_comment = allow;
+	}
+	void allow_ambiguous_comma(bool allow)
+	{
+		d.allow_ambiguous_comma = allow;
+	}
+	void allow_unquoted_key(bool allow)
+	{
+		d.allow_unquoted_key = allow;
+	}
+	void allow_hexadicimal(bool allow)
+	{
+		d.allow_hexadicimal = allow;
+	}
+	void allow_special_constant(bool allow)
+	{
+		d.allow_special_constant = allow;
+	}
+	void reset()
+	{
+		d.errors.clear();
+	}
+	void hold()
+	{
+		d.hold = true;
+	}
+	void nest()
+	{
+		d.depth_stack.push_back(depth());
+	}
+	bool next()
+	{
+		if (d.hold) {
+			d.hold = false;
+			return true;
+		}
+		if (_internal_next()) {
+			if (d.depth_stack.empty()) return true;
+			if (this->depth() >= d.depth_stack.back()) {
+				return true;
+			}
+			d.depth_stack.pop_back();
+			hold();
 		}
 		return false;
 	}
@@ -840,9 +884,14 @@ public:
 		return d.states.empty() ? None : d.states.back().type;
 	}
 
-	bool iserror() const
+	bool has_error() const
 	{
-		return state() == Error;
+		return !d.errors.empty();
+	}
+
+	std::vector<Error> const &errors() const
+	{
+		return d.errors;
 	}
 
 	bool is_start_object() const
@@ -853,6 +902,16 @@ public:
 	bool is_end_object() const
 	{
 		return state() == EndObject;
+	}
+
+	bool is_start_array() const
+	{
+		return state() == StartArray;
+	}
+
+	bool is_end_array() const
+	{
+		return state() == EndArray;
 	}
 
 	bool isobject() const
@@ -927,6 +986,16 @@ public:
 		return symbol() == True;
 	}
 
+	bool isnumber() const
+	{
+		return state() == Number;
+	}
+
+	bool isstring() const
+	{
+		return state() == String;
+	}
+
 	double number() const
 	{
 		return d.number;
@@ -968,7 +1037,7 @@ public:
 		if (vals && clear) {
 			vals->clear();
 		}
-		if (!isobject() && !isvalue()) return false;
+		if (!isobject() && !isarray() && !isvalue()) return false;
 		size_t i;
 		for (i = 0; i < d.depth.size(); i++) {
 			std::string const &s = d.depth[i];
@@ -1033,6 +1102,7 @@ public:
 
 	void parse(rule_for_string_t const &rule, char sep = ',')
 	{
+		reset();
 		while (next()) {
 			for (auto &t : rule) {
 				std::vector<std::string> vals;
@@ -1050,6 +1120,7 @@ public:
 
 	void parse(rule_for_strings_t const &rule)
 	{
+		reset();
 		while (next()) {
 			for (auto &t : rule) {
 				match(t.first.data(), t.second, false);
@@ -1371,6 +1442,190 @@ public:
 		symbol({}, Null);
 	}
 };
+
+typedef std::nullptr_t null_t;
+constexpr std::nullptr_t null = nullptr;
+
+struct Array;
+struct KeyValue;
+typedef std::vector<KeyValue> _Object;
+typedef std::variant<null_t, bool, double, std::string, _Object, Array> Variant;
+struct Array {
+	std::vector<Variant> a;
+	size_t size() const
+	{
+		return a.size();
+	}
+	jstream::Variant &operator[](size_t i)
+	{
+		return a[i];
+	}
+	jstream::Variant const &operator[](size_t i) const
+	{
+		return a[i];
+	}
+	template <typename T> T &get(size_t i)
+	{
+		assert(i < a.size());
+		return std::get<T>(a[i]);
+	}
+	template <typename T> T const &get(size_t i) const
+	{
+		assert(i < a.size());
+		return std::get<T>(a[i]);
+	}
+	void push_back(Variant const &v)
+	{
+		a.push_back(v);
+	}
+	Array &operator += (Variant const &v)
+	{
+		push_back(v);
+		return *this;
+	}
+};
+struct KeyValue {
+	std::string key;
+	jstream::Variant value;
+	KeyValue() = default;
+	KeyValue(std::string const &k, Variant const &v)
+		: key(k), value(v)
+	{
+	}
+};
+struct Object {
+	struct VariantRef {
+		Variant *var;
+		VariantRef(Variant &v)
+			: var(&v)
+		{
+		}
+		void operator = (Variant const &v)
+		{
+			*var = v;
+		}
+	};
+	_Object *p;
+	Object() : p(nullptr)
+	{
+	}
+	Object(_Object &o)
+		: p(&o)
+	{
+	}
+	Object(Variant &v)
+	{
+		if (!std::holds_alternative<_Object>(v)) {
+			v = _Object();
+		}
+		p = &std::get<_Object>(v);
+	}
+	jstream::Variant *find(std::string const &key)
+	{
+		if (p) {
+			for (auto &kv : *p) {
+				if (kv.key == key) {
+					return &kv.value;
+				}
+			}
+		}
+		return nullptr;
+	}
+	jstream::Variant const *find(std::string const &key) const
+	{
+		return const_cast<Object *>(this)->find(key);
+	}
+	jstream::Variant &value(std::string const &key)
+	{
+		jstream::Variant *v = find(key);
+		assert(v);
+		return *v;
+	}
+	jstream::Variant const &value(std::string const &key) const
+	{
+		return const_cast<Object *>(this)->value(key);
+	}
+	template <typename T> T const &get(std::string const &key) const
+	{
+		jstream::Variant const *v = find(key);
+		assert(v);
+		return std::get<T>(*v);
+	}
+	VariantRef operator [] (std::string const &key)
+	{
+		p->emplace_back(key, Variant());
+		return p->back().value;
+	}
+};
+
+static inline bool is_null(Variant const &v)
+{
+	return std::holds_alternative<nullptr_t>(v);
+}
+static inline bool is_boolean(Variant const &v)
+{
+	return std::holds_alternative<bool>(v);
+}
+static inline bool is_number(Variant const &v)
+{
+	return std::holds_alternative<double>(v);
+}
+static inline bool is_string(Variant const &v)
+{
+	return std::holds_alternative<std::string>(v);
+}
+static inline bool is_object(Variant const &v)
+{
+	return std::holds_alternative<_Object>(v);
+}
+static inline bool is_array(Variant const &v)
+{
+	return std::holds_alternative<Array>(v);
+}
+static inline bool is_nan(Variant const &v)
+{
+	return std::holds_alternative<double>(v) && std::isnan(std::get<double>(v));
+}
+static inline bool is_infinite(Variant const &v)
+{
+	return std::holds_alternative<double>(v) && std::isinf(std::get<double>(v));
+}
+static inline Array &arr(Array &a)
+{
+	return a;
+}
+static inline Array &arr(Variant &v)
+{
+	if (!std::holds_alternative<Array>(v)) {
+		v = Array();
+	}
+	return std::get<Array>(v);
+}
+static inline Object obj(Variant &v)
+{
+	if (!std::holds_alternative<_Object>(v)) {
+		v = _Object();
+	}
+	return Object(std::get<_Object>(v));
+}
+
+static inline Variant var(jstream::Reader const &reader)
+{
+	if (reader.isnull()) {
+		return null;
+	} else if (reader.isfalse()) {
+		return false;
+	} else if (reader.istrue()) {
+		return true;
+	} else if (reader.isnumber()) {
+		return reader.number();
+	} else if (reader.isstring()) {
+		return reader.string();
+	}
+	return null;
+}
+
+using std::get;
 
 } // namespace jstream
 
