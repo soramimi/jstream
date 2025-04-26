@@ -107,9 +107,9 @@ TEST(Json, GoogleForms1)
 		}
 	}
 
-	assert(parsed.responses.size() == 1);
+	ASSERT_EQ(parsed.responses.size(), 1);
 	EXPECT_EQ(parsed.responses[0].resourceId, "ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA");
-	assert(parsed.responses[0].answers.size() == 3);
+	ASSERT_EQ(parsed.responses[0].answers.size(), 3);
 	EXPECT_EQ(parsed.responses[0].answers[0].key, "704f9a53");
 	EXPECT_EQ(parsed.responses[0].answers[0].questionId, "704f9a53");
 	EXPECT_EQ(parsed.responses[0].answers[0].textAnswers.answers[0].value, "soramimi");

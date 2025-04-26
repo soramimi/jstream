@@ -181,7 +181,7 @@ TEST(Json, Json4)
 	EXPECT_EQ(parsed.city, "New York");
 	EXPECT_EQ(obj(parsed.address).get<std::string>("street"), "123 Main St");
 	EXPECT_EQ(obj(parsed.address).get<std::string>("zip"), "10001");
-	assert(arr(parsed.hobby).size() == 5);
+	ASSERT_EQ(arr(parsed.hobby).size(), 5);
 	EXPECT_EQ(arr(parsed.hobby).get<std::string>(0), "reading");
 	EXPECT_EQ(arr(parsed.hobby).get<std::string>(1), "traveling");
 	EXPECT_EQ(arr(parsed.hobby).get<std::string>(2), "coding");
@@ -235,7 +235,7 @@ TEST(Json, Json5)
 	EXPECT_EQ(get<std::string>(parsed.city), "New York");
 	EXPECT_EQ(obj(parsed.address).get<std::string>("street"), "123 Main St");
 	EXPECT_EQ(obj(parsed.address).get<std::string>("zip"), "10001");
-	assert(parsed.hobby.size() == 2);
+	ASSERT_EQ(parsed.hobby.size(), 2);
 	EXPECT_EQ(parsed.hobby.get<std::string>(0), "reading");
 	EXPECT_EQ(parsed.hobby.get<std::string>(1), "traveling");
 
@@ -425,10 +425,9 @@ TEST(Json, Array1)
 			v.push_back(r.number());
 		}
 	}
-	assert(v.size() == 4);
+	ASSERT_EQ(v.size(), 4);
 	EXPECT_EQ(v[0], 12);
 	EXPECT_EQ(v[1], 34);
-	EXPECT_EQ(v[2], 56);
 	EXPECT_EQ(v[2], 56);
 	EXPECT_EQ(v[3], 78);
 }
@@ -456,7 +455,7 @@ TEST(Json, Array2)
 			}
 		}
 	}
-	assert(v.size() == 4);
+	ASSERT_EQ(v.size(), 4);
 	EXPECT_EQ(v[0], 12);
 	EXPECT_EQ(v[1], 34);
 	EXPECT_EQ(v[2], 56);
@@ -498,7 +497,7 @@ TEST(Json, Array3)
 		}
 	}
 
-	assert(items.size() == 3);
+	ASSERT_EQ(items.size(), 3);
 	EXPECT_EQ(items[0].name, "apple");
 	EXPECT_EQ(items[0].price, 150);
 	EXPECT_EQ(items[1].name, "banana");
@@ -555,7 +554,7 @@ TEST(Json, Array4)
 		}
 	}
 
-	assert(books.size() == 2);
+	ASSERT_EQ(books.size(), 2);
 	EXPECT_EQ(books[0].id, "444");
 	EXPECT_EQ(books[0].language, "C");
 	EXPECT_EQ(books[0].edition, "First");

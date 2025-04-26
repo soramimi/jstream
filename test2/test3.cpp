@@ -251,7 +251,7 @@ TEST(Json, Extreme1)
 
 	EXPECT_EQ(get<std::string>(parsed.meta.id), "9f3c1a2b-d3e7-43d2-b3a5-92024ad58e3a");
 	EXPECT_EQ(get<std::string>(parsed.meta.timestamp), "2025-04-22T12:34:56Z");
-	assert(parsed.meta.flags.size() == 7);
+	ASSERT_EQ(parsed.meta.flags.size(), 7);
 	EXPECT_EQ(get<bool>(parsed.meta.flags[0]), true);
 	EXPECT_EQ(get<bool>(parsed.meta.flags[1]), false);
 	EXPECT_EQ(get<null_t>(parsed.meta.flags[2]), null);
