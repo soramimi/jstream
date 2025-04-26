@@ -49,10 +49,9 @@ TEST(Json, Extreme1)
 				"roles": ["admin", "user", {"type": "custom", "name": "α-β"}],
 				"active": true
 			},
-			"hoge": 1,
 			"history": [
 				{"action": "login", "timestamp": "2025-01-01T00:00:00Z"},
-				{"action": "update", "changes": [{"field": "email", "old": null, "new": "a@example.com"}]}
+				{"action": "update", "changes": [{"field": "email", "foo": null, "bar": "a@example.com"}]}
 			]
 		},
 		{
@@ -121,12 +120,16 @@ TEST(Json, Extreme1)
 				Variant id;
 				Variant name;
 				Array roles;
-				Variant active;
+				bool active;
 				struct Profile {
 					Variant bio;
 					struct Links {
 						Variant homepage;
-						Array social;
+						struct Social {
+							std::string type;
+							std::string url;
+						};
+						std::vector<Social> social;
 					} links;
 				} profile;
 			} user;
@@ -153,12 +156,10 @@ TEST(Json, Extreme1)
 				Variant boolean;
 				Variant null;
 				Array array;
-				Object object;
+				std::string object;
 			} types;
 		} misc;
 	} parsed;
-
-	ParsedData::Data data;
 
 	jstream::Reader reader(json);
 	while (reader.next()) {
@@ -191,37 +192,77 @@ TEST(Json, Extreme1)
 			}
 		} else if (reader.match("{config{features{deprecated[*") && reader.isvalue()) {
 			parsed.config.features.deprecated.features += var(reader);
-		} else if (reader.match("{data[{user{id")) {
-			data.user.id = reader.number();
-		} else if (reader.match("{data[{user{name")) {
-			data.user.name = reader.string();
-		} else if (reader.match("{data[{user{roles[*") && reader.isvalue()) {
-			data.user.roles += var(reader);
-		} else if (reader.match("{data[{user{active")) {
-			data.user.active = reader.string();
-		} else if (reader.match("{data[{hoge")) {
-			// printf("@ %d %s %s\n", reader.state(), reader.key().c_str(), reader.string().c_str());
-		} else if (reader.match("{data[{history[*")) {
-			if (reader.is_start_object()) {
-				ParsedData::Data::History his;
-				reader.nest();
-				do {
-					// {"action": "login", "timestamp": "2025-01-01T00:00:00Z"},
-					// {"action": "update", "changes": [{"field": "email", "old": null, "new": "a@example.com"}]}
-					if (reader.match("{data[{history[{action")) {
-						his.action = reader.string();
-						// printf("@ %d %s %s\n", reader.state(), reader.key().c_str(), reader.string().c_str());
+		} else if (reader.match("{data[*")) {
+			ParsedData::Data data;
+			reader.nest();
+			do {
+				if (reader.match("{data[{user{id")) {
+					data.user.id = reader.number();
+				} else if (reader.match("{data[{user{name")) {
+					data.user.name = reader.string();
+				} else if (reader.match("{data[{user{roles[*")) {
+					reader.nest();
+					do {
+						if (reader.isvalue()) {
+							data.user.roles.push_back(var(reader));
+						} else if (reader.is_start_object()) {
+							reader.nest();
+							do {
+								if (reader.match("{data[{user{roles[*{type") || reader.match("{data[{user{roles[*{name")) {
+									Variant v;
+									obj(v)[reader.key()] = reader.string();
+									data.user.roles.push_back(v);
+								}
+							} while (reader.next());
+						}
+					} while (reader.next());
+				} else if (reader.match("{data[{user{active")) {
+					data.user.active = reader.istrue();
+				} else if (reader.match("{data[{history[*")) {
+					if (reader.is_start_object()) {
+						ParsedData::Data::History his;
+						reader.nest();
+						do {
+							if (reader.match("{data[{history[{action")) {
+								his.action = reader.string();
+							} else if (reader.match("{data[{history[{timestamp")) {
+								his.timestamp = reader.string();
+							} else if (reader.match("{data[{history[{changes[*")) {
+								ParsedData::Data::History::Change chg;
+								reader.nest();
+								do {
+									if (reader.match("{data[{history[{changes[{field")) {
+										chg.field = reader.string();
+									} else if (reader.match("{data[{history[{changes[{foo")) {
+										chg.foo = reader.string();
+									} else if (reader.match("{data[{history[{changes[{bar")) {
+										chg.bar = reader.string();
+									}
+								} while (reader.next());
+								his.changes.push_back(chg);
+							}
+						} while (reader.next());
+						data.history.push_back(his);
 					}
-					ParsedData::Data::History::Change chg;
-
-				} while (reader.next());
-			}
-		} else if (reader.match("{data[{profile{bio")) {
-			data.user.profile.bio = reader.string();
-		} else if (reader.match("{data[{profile{links{homepage")) {
-			data.user.profile.links.homepage = reader.string();
-		} else if (reader.match("{data[{profile{links{social[*")) {
-			// todo:
+				} else if (reader.match("{data[{user{profile{bio")) {
+					std::string s = reader.string();
+					data.user.profile.bio = reader.string();
+				} else if (reader.match("{data[{user{profile{links{homepage")) {
+					data.user.profile.links.homepage = var(reader);
+				} else if (reader.match("{data[{user{profile{links{social[*")) {
+					ParsedData::Data::User::Profile::Links::Social soc;
+					reader.nest();
+					do {
+						if (reader.match("{data[{user{profile{links{social[{type")) {
+							soc.type = reader.string();
+						} else if (reader.match("{data[{user{profile{links{social[{url")) {
+							soc.url = reader.string();
+						}
+					} while (reader.next());
+					data.user.profile.links.social.push_back(soc);
+				}
+			} while (reader.next());
+			parsed.data.push_back(data);
 		} else if (reader.match("{misc{emptyObj")) {
 			parsed.misc.emptyObj = reader.string();
 		} else if (reader.match("{misc{emptyArr")) {
@@ -233,13 +274,18 @@ TEST(Json, Extreme1)
 		} else if (reader.match("{misc{types{string")) {
 			parsed.misc.types.string = reader.string();
 		} else if (reader.match("{misc{types{boolean")) {
-			parsed.misc.types.boolean = reader.string();
+			parsed.misc.types.boolean = reader.istrue();
 		} else if (reader.match("{misc{types{null")) {
-			parsed.misc.types.null = reader.string();
+			parsed.misc.types.null = var(reader);
 		} else if (reader.match("{misc{types{array[*")) {
-			// todo:
-		} else if (reader.match("{misc{types{object{{nested{{again{{why")) {
-			// todo:
+			reader.nest();
+			do {
+				if (reader.isvalue()) {
+					arr(parsed.misc.types.array).push_back(reader.number());
+				}
+			} while (reader.next());
+		} else if (reader.match("{misc{types{object{nested{again{why")) {
+			parsed.misc.types.object = reader.string();
 		}
 	}
 
@@ -272,17 +318,37 @@ TEST(Json, Extreme1)
 	EXPECT_EQ(get<std::string>(parsed.config.features.deprecated.features[0]), "featureX");
 	EXPECT_EQ(get<std::string>(parsed.config.features.deprecated.features[1]), "featureY");
 	EXPECT_EQ(get<null_t>(parsed.config.features.deprecated.features[2]), null);
-	// EXPECT_EQ(data.user.id, 1);
-	// EXPECT_EQ(js::get<std::string>(data.user.name), "Alice");
-	// EXPECT_EQ(data.user.roles.size(), 3);
-	// EXPECT_EQ(js::get<std::string>(data.user.roles[0]->value), "admin");
-	// EXPECT_EQ(js::get<std::string>(data.user.roles[1]->value), "user");
-	// EXPECT_EQ(js::get<std::string>(data.user.roles[2]->value), "α-β");
-	// EXPECT_EQ(js::get<Enum>(data.user.active), True);
-	// EXPECT_EQ(data.history.size(), 2);
-	// EXPECT_EQ(js::get<std::string>(data.history[0]->value), "login");
-	// EXPECT_EQ(js::get<std::string>(data.history[1]->value), "update");
-	// EXPECT_EQ(js::get<std::string>(parsed.user.profile.bio), "👨‍💻 Coder. \"Escape\\Sequence\" tester.");
+	ASSERT_EQ(parsed.data.size(), 2);
+	EXPECT_EQ(get<double>(parsed.data[0].user.id), 1);
+	EXPECT_EQ(get<std::string>(parsed.data[0].user.name), "Alice");
+	ASSERT_EQ(parsed.data[0].user.roles.size(), 4);
+	EXPECT_EQ(arr(parsed.data[0].user.roles).get<std::string>(0), "admin");
+	EXPECT_EQ(arr(parsed.data[0].user.roles).get<std::string>(1), "user");
+	EXPECT_EQ(obj(arr(parsed.data[0].user.roles)[2]).get<std::string>("type"), "custom");
+	EXPECT_EQ(obj(arr(parsed.data[0].user.roles)[3]).get<std::string>("name"), "α-β");
+	EXPECT_EQ(parsed.data[0].user.active, true);
+	ASSERT_EQ(parsed.data[0].history.size(), 2);
+	EXPECT_EQ(parsed.data[0].history[0].action, "login");
+	EXPECT_EQ(parsed.data[0].history[1].action, "update");
+	EXPECT_EQ(get<std::string>(parsed.data[1].user.profile.bio), "👨‍💻 Coder. \"Escape\\Sequence\" tester.");
+	EXPECT_EQ(get<null_t>(parsed.data[1].user.profile.links.homepage), null);
+	ASSERT_EQ(parsed.data[1].user.profile.links.social.size(), 2);
+	ASSERT_EQ(parsed.data[1].user.profile.links.social[0].type, "twitter");
+	ASSERT_EQ(parsed.data[1].user.profile.links.social[0].url, "https://twitter.com/bob");
+	ASSERT_EQ(parsed.data[1].user.profile.links.social[1].type, "matrix");
+	ASSERT_EQ(parsed.data[1].user.profile.links.social[1].url, "matrix:r/room:server");
+	ASSERT_EQ(obj(parsed.misc.emptyObj).size(), 0);
+	EXPECT_EQ(arr(parsed.misc.emptyArr).size(), 0);
+	EXPECT_EQ(get<double>(parsed.misc.types.int_), 42);
+	EXPECT_NEAR(get<double>(parsed.misc.types.float_), 3.14159, 1e-10);
+	EXPECT_EQ(get<std::string>(parsed.misc.types.string), "test");
+	EXPECT_EQ(get<bool>(parsed.misc.types.boolean), false);
+	EXPECT_EQ(get<null_t>(parsed.misc.types.null), null);
+	ASSERT_EQ(parsed.misc.types.array.size(), 3);
+	EXPECT_EQ(parsed.misc.types.array.get<double>(0), 1);
+	EXPECT_EQ(parsed.misc.types.array.get<double>(1), 2);
+	EXPECT_EQ(parsed.misc.types.array.get<double>(2), 3);
+	ASSERT_EQ(parsed.misc.types.object, "not");
 }
 
 // testing model context protocol

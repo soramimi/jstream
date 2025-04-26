@@ -1456,11 +1456,15 @@ struct Array {
 	{
 		return a.size();
 	}
-	jstream::Variant &operator[](size_t i)
+	bool empty() const
+	{
+		return a.empty();
+	}
+	Variant &operator[](size_t i)
 	{
 		return a[i];
 	}
-	jstream::Variant const &operator[](size_t i) const
+	Variant const &operator[](size_t i) const
 	{
 		return a[i];
 	}
@@ -1486,7 +1490,7 @@ struct Array {
 };
 struct KeyValue {
 	std::string key;
-	jstream::Variant value;
+	Variant value;
 	KeyValue() = default;
 	KeyValue(std::string const &k, Variant const &v)
 		: key(k), value(v)
@@ -1504,6 +1508,10 @@ struct Object {
 		{
 			*var = v;
 		}
+		operator Variant &()
+		{
+			return *var;
+		}
 	};
 	_Object *p;
 	Object() : p(nullptr)
@@ -1520,7 +1528,15 @@ struct Object {
 		}
 		p = &std::get<_Object>(v);
 	}
-	jstream::Variant *find(std::string const &key)
+	size_t size() const
+	{
+		return p ? p->size() : 0;
+	}
+	bool empty() const
+	{
+		return size() == 0;
+	}
+	Variant *find(std::string const &key)
 	{
 		if (p) {
 			for (auto &kv : *p) {
@@ -1531,23 +1547,23 @@ struct Object {
 		}
 		return nullptr;
 	}
-	jstream::Variant const *find(std::string const &key) const
+	Variant const *find(std::string const &key) const
 	{
 		return const_cast<Object *>(this)->find(key);
 	}
-	jstream::Variant &value(std::string const &key)
+	Variant &value(std::string const &key)
 	{
-		jstream::Variant *v = find(key);
+		Variant *v = find(key);
 		assert(v);
 		return *v;
 	}
-	jstream::Variant const &value(std::string const &key) const
+	Variant const &value(std::string const &key) const
 	{
 		return const_cast<Object *>(this)->value(key);
 	}
 	template <typename T> T const &get(std::string const &key) const
 	{
-		jstream::Variant const *v = find(key);
+		Variant const *v = find(key);
 		assert(v);
 		return std::get<T>(*v);
 	}
