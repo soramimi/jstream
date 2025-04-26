@@ -10,4 +10,5 @@ LIBS += -lgtest
 HEADERS += ../test.h ../jstream.h
 SOURCES += main.cpp \
     test1.cpp \
-    test2.cpp
+    test2.cpp \
+    test3.cpp

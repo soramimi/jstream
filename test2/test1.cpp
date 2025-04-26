@@ -286,6 +286,129 @@ TEST(Json, Json6)
 	EXPECT_EQ(v[2], "done");
 }
 
+TEST(Json, Json7)
+{
+	char const *json = R"---(
+{
+  "floats": {
+	"smallest_subnormal": 5e-324,
+	"largest_subnormal": 2.2250738585072009e-308,
+	"smallest_normal": 2.2250738585072014e-308,
+	"largest_normal": 1.7976931348623157e+308,
+
+	"just_over_one": 1.0000000000000002,
+	"just_under_one": 0.9999999999999999,
+
+	"negative_just_over_minus_one": -0.9999999999999999,
+	"negative_just_under_minus_one": -1.0000000000000002,
+
+	"pi_high_prec": 3.14159265358979323846264338327950288419716939937510,
+	"e_high_prec": 2.71828182845904523536028747135266249775724709369995,
+
+	"half": 0.5,
+	"one_third": 0.3333333333333333,
+	"two_thirds": 0.6666666666666666,
+
+	"binary_rounding_issue_1": 0.1,
+	"binary_rounding_issue_2": 0.2,
+	"binary_rounding_issue_3": 0.3,
+	"binary_rounding_issue_4": 0.4,
+
+	"precision_loss": 9007199254740993,
+	"int_boundary": 9007199254740991,
+  }
+}
+)---";
+
+	struct ParsedData {
+		double smallest_subnormal;
+		double largest_subnormal;
+		double smallest_normal;
+		double largest_normal;
+		double just_over_one;
+		double just_under_one;
+		double negative_just_over_minus_one;
+		double negative_just_under_minus_one;
+		double pi_high_prec;
+		double e_high_prec;
+		double half;
+		double one_third;
+		double two_thirds;
+		double binary_rounding_issue_1;
+		double binary_rounding_issue_2;
+		double binary_rounding_issue_3;
+		double binary_rounding_issue_4;
+		double precision_loss;
+		double int_boundary;
+	} parsed;
+
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{floats{smallest_subnormal")) {
+			parsed.smallest_subnormal = r.number();
+		} else if (r.match("{floats{largest_subnormal")) {
+			parsed.largest_subnormal = r.number();
+		} else if (r.match("{floats{smallest_normal")) {
+			parsed.smallest_normal = r.number();
+		} else if (r.match("{floats{largest_normal")) {
+			parsed.largest_normal = r.number();
+		} else if (r.match("{floats{just_over_one")) {
+			parsed.just_over_one = r.number();
+		} else if (r.match("{floats{just_under_one")) {
+			parsed.just_under_one = r.number();
+		} else if (r.match("{floats{negative_just_over_minus_one")) {
+			parsed.negative_just_over_minus_one = r.number();
+		} else if (r.match("{floats{negative_just_under_minus_one")) {
+			parsed.negative_just_under_minus_one = r.number();
+		} else if (r.match("{floats{pi_high_prec")) {
+			parsed.pi_high_prec = r.number();
+		} else if (r.match("{floats{e_high_prec")) {
+			parsed.e_high_prec = r.number();
+		} else if (r.match("{floats{half")) {
+			parsed.half = r.number();
+		} else if (r.match("{floats{one_third")) {
+			parsed.one_third = r.number();
+		} else if (r.match("{floats{two_thirds")) {
+			parsed.two_thirds = r.number();
+		} else if (r.match("{floats{binary_rounding_issue_1")) {
+			parsed.binary_rounding_issue_1 = r.number();
+		} else if (r.match("{floats{binary_rounding_issue_2")) {
+			parsed.binary_rounding_issue_2 = r.number();
+		} else if (r.match("{floats{binary_rounding_issue_3")) {
+			parsed.binary_rounding_issue_3 = r.number();
+		} else if (r.match("{floats{binary_rounding_issue_4")) {
+			parsed.binary_rounding_issue_4 = r.number();
+		} else if (r.match("{floats{precision_loss")) {
+			parsed.precision_loss = r.number();
+		} else if (r.match("{floats{int_boundary")) {
+			parsed.int_boundary = r.number();
+		}
+	}
+
+	double eps = 1e-15;
+
+	EXPECT_NEAR(parsed.smallest_subnormal, 5e-324, eps);
+	EXPECT_NEAR(parsed.largest_subnormal, 2.2250738585072009e-308, eps);
+	EXPECT_NEAR(parsed.smallest_normal, 2.2250738585072014e-308, eps);
+	EXPECT_NEAR(parsed.largest_normal, 1.7976931348623157e+308, eps);
+	EXPECT_NEAR(parsed.just_over_one, 1.0000000000000002, eps);
+	EXPECT_NEAR(parsed.just_under_one, 0.9999999999999999, eps);
+	EXPECT_NEAR(parsed.negative_just_over_minus_one, -0.9999999999999999, eps);
+	EXPECT_NEAR(parsed.negative_just_over_minus_one, -1.0000000000000002, eps);
+	EXPECT_NEAR(parsed.pi_high_prec, 3.14159265358979323846264338327950288419716939937510, eps);
+	EXPECT_NEAR(parsed.pi_high_prec, 3.14159265358979323846264338327950288419716939937510, eps);
+	EXPECT_NEAR(parsed.e_high_prec, 2.71828182845904523536028747135266249775724709369995, eps);
+	EXPECT_NEAR(parsed.half, 0.5, eps);
+	EXPECT_NEAR(parsed.one_third, 0.3333333333333333, eps);
+	EXPECT_NEAR(parsed.two_thirds, 0.6666666666666666, eps);
+	EXPECT_NEAR(parsed.binary_rounding_issue_1, 0.1, eps);
+	EXPECT_NEAR(parsed.binary_rounding_issue_2, 0.2, eps);
+	EXPECT_NEAR(parsed.binary_rounding_issue_3, 0.3, eps);
+	EXPECT_NEAR(parsed.binary_rounding_issue_4, 0.4, eps);
+	EXPECT_NEAR(parsed.precision_loss, 9007199254740993, eps);
+	EXPECT_NEAR(parsed.int_boundary, 9007199254740991, eps);
+}
+
 TEST(Json, Array1)
 {
 	char const *json = R"---(
@@ -441,163 +564,5 @@ TEST(Json, Array4)
 	EXPECT_EQ(books[1].language, "C++");
 	EXPECT_EQ(books[1].edition, "Second");
 	EXPECT_EQ(books[1].author, "Bjarne Stroustrup");
-}
-
-TEST(Json, GoogleForms1)
-{
-	char const *json = R"---(
-{
-  "responses": [
-	{
-	  "responseId": "ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA",
-	  "createTime": "2024-06-19T16:05:51.394Z",
-	  "lastSubmittedTime": "2024-06-19T16:05:51.394652Z",
-	  "answers": {
-		"704f9a53": {
-		  "questionId": "704f9a53",
-		  "textAnswers": {
-			"answers": [
-			  {
-				"value": "soramimi"
-			  }
-			]
-		  }
-		},
-		"4842f816": {
-		  "questionId": "4842f816",
-		  "textAnswers": {
-			"answers": [
-			  {
-				"value": "L"
-			  }
-			]
-		  }
-		},
-		"1e9dfb54": {
-		  "questionId": "1e9dfb54",
-		  "textAnswers": {
-			"answers": [
-			  {
-				"value": "test"
-			  }
-			]
-		  }
-		}
-	  }
-	}
-  ]
-}
-)---";
-
-	struct ParsedData {
-		struct Response {
-			std::string resourceId;
-			std::string createTime;
-			std::string lastSubmittedTime;
-			struct Answers {
-				std::string key;
-				std::string questionId;
-				struct TextAnswers {
-					struct Answer {
-						std::string value;
-					};
-					std::vector<Answer> answers;
-				} textAnswers;
-			};
-			std::vector<Answers> answers;
-		};
-		std::vector<Response> responses;
-	} parsed;
-
-	jstream::Reader r(json);
-	while (r.next()) {
-		if (r.match("{responses[*") && r.is_start_object()) {
-			ParsedData::Response response;
-			r.nest();
-			do {
-				if (r.match("{responses[{responseId")) {
-					response.resourceId = r.string();
-				} else if (r.match("{responses[{createTime")) {
-					response.createTime = r.string();
-				} else if (r.match("{responses[{lastSubmittedTime")) {
-					response.lastSubmittedTime = r.string();
-				} else if (r.match("{responses[{answers{*")) {
-					if (r.is_start_object()) {
-						r.nest();
-						ParsedData::Response::Answers answers;
-						answers.key = r.key();
-						do {
-							if (r.match("{responses[{answers{*{questionId")) {
-								answers.questionId = r.string();
-							} else if (r.match("{responses[{answers{*{textAnswers{answers[{value")) {
-								ParsedData::Response::Answers::TextAnswers::Answer a;
-								a.value = r.string();
-								answers.textAnswers.answers.push_back(a);
-							}
-						} while (r.next());
-						response.answers.push_back(answers);
-					}
-				}
-			} while (r.next());
-			parsed.responses.push_back(response);
-		}
-	}
-
-	assert(parsed.responses.size() == 1);
-	EXPECT_EQ(parsed.responses[0].resourceId, "ACYDBNiWZb5bf6PCC964lJBNSaQfEjfc4rCTBMaAjb62EhOwJMqXCxS9NreBtx7DxOWlpRA");
-	assert(parsed.responses[0].answers.size() == 3);
-	EXPECT_EQ(parsed.responses[0].answers[0].key, "704f9a53");
-	EXPECT_EQ(parsed.responses[0].answers[0].questionId, "704f9a53");
-	EXPECT_EQ(parsed.responses[0].answers[0].textAnswers.answers[0].value, "soramimi");
-	EXPECT_EQ(parsed.responses[0].answers[1].key, "4842f816");
-	EXPECT_EQ(parsed.responses[0].answers[1].questionId, "4842f816");
-	EXPECT_EQ(parsed.responses[0].answers[1].textAnswers.answers[0].value, "L");
-	EXPECT_EQ(parsed.responses[0].answers[2].key, "1e9dfb54");
-	EXPECT_EQ(parsed.responses[0].answers[2].questionId, "1e9dfb54");
-	EXPECT_EQ(parsed.responses[0].answers[2].textAnswers.answers[0].value, "test");
-
-
-}
-
-TEST(Json, OAuth1)
-{
-	char const *json = R"---(
-{
-  "access_token": "qwerty123",
-  "expires_in": 3599,
-  "scope": "https://www.googleapis.com/auth/userinfo.profile",
-  "token_type": "Bearer",
-  "id_token": "abcdefg"
-}
-)---";
-
-	struct ParsedData {
-		std::string access_token;
-		double expires_in;
-		std::string scope;
-		std::string token_type;
-		std::string id_token;
-	} parsed;
-
-	jstream::Reader r(json);
-	while (r.next()) {
-		if (r.match("{access_token")) {
-			parsed.access_token = r.string();
-		} else if (r.match("{expires_in")) {
-			parsed.expires_in = r.number();
-		} else if (r.match("{scope")) {
-			parsed.scope = r.string();
-		} else if (r.match("{token_type")) {
-			parsed.token_type = r.string();
-		} else if (r.match("{id_token")) {
-			parsed.id_token = r.string();
-		}
-	}
-
-	EXPECT_EQ(parsed.access_token, "qwerty123");
-	EXPECT_EQ(parsed.expires_in, 3599);
-	EXPECT_EQ(parsed.scope, "https://www.googleapis.com/auth/userinfo.profile");
-	EXPECT_EQ(parsed.token_type, "Bearer");
-	EXPECT_EQ(parsed.id_token, "abcdefg");
 }
 
