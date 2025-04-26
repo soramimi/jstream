@@ -156,7 +156,7 @@ TEST(Json, Extreme1)
 				Variant boolean;
 				Variant null;
 				Array array;
-				std::string object;
+				Variant object;
 			} types;
 		} misc;
 	} parsed;
@@ -285,7 +285,7 @@ TEST(Json, Extreme1)
 				}
 			} while (reader.next());
 		} else if (reader.match("{misc{types{object{nested{again{why")) {
-			parsed.misc.types.object = reader.string();
+			parsed.misc.types.object = var(reader);
 		}
 	}
 
@@ -311,8 +311,8 @@ TEST(Json, Extreme1)
 	EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.value), "∞");
 	EXPECT_EQ(get<bool>(parsed.config.features.experimental.parameters.gamma.enabled), false);
 	EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.notes.size(), 2);
-	EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.notes.get<std::string>(0), "Supports Unicode ✓");
-	EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.notes.get<std::string>(1), "Handles emoji 😊");
+	EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.notes[0]), "Supports Unicode ✓");
+	EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.notes[1]), "Handles emoji 😊");
 	EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.unexpected_deep_nesting_level, 6);
 	EXPECT_EQ(parsed.config.features.deprecated.features.size(), 3);
 	EXPECT_EQ(get<std::string>(parsed.config.features.deprecated.features[0]), "featureX");
@@ -345,10 +345,10 @@ TEST(Json, Extreme1)
 	EXPECT_EQ(get<bool>(parsed.misc.types.boolean), false);
 	EXPECT_EQ(get<null_t>(parsed.misc.types.null), null);
 	ASSERT_EQ(parsed.misc.types.array.size(), 3);
-	EXPECT_EQ(parsed.misc.types.array.get<double>(0), 1);
-	EXPECT_EQ(parsed.misc.types.array.get<double>(1), 2);
-	EXPECT_EQ(parsed.misc.types.array.get<double>(2), 3);
-	ASSERT_EQ(parsed.misc.types.object, "not");
+	EXPECT_EQ(get<double>(parsed.misc.types.array[0]), 1);
+	EXPECT_EQ(get<double>(parsed.misc.types.array[1]), 2);
+	EXPECT_EQ(get<double>(parsed.misc.types.array[2]), 3);
+	EXPECT_EQ(get<std::string>(parsed.misc.types.object), "not");
 }
 
 // testing model context protocol

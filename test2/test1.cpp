@@ -10,9 +10,6 @@ using namespace jstream;
 
 TEST(Json, Json0)
 {
-	Variant var;
-	Object::VariantRef ref(Array());
-
 	Variant v;
 	v = null;
 	EXPECT_TRUE(is_null(v));

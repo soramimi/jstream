@@ -1497,22 +1497,22 @@ struct KeyValue {
 	{
 	}
 };
+struct VariantRef {
+	Variant *var;
+	VariantRef(Variant &v)
+		: var(&v)
+	{
+	}
+	void operator = (Variant const &v)
+	{
+		*var = v;
+	}
+	operator Variant &()
+	{
+		return *var;
+	}
+};
 struct Object {
-	struct VariantRef {
-		Variant *var;
-		VariantRef(Variant &v)
-			: var(&v)
-		{
-		}
-		void operator = (Variant const &v)
-		{
-			*var = v;
-		}
-		operator Variant &()
-		{
-			return *var;
-		}
-	};
 	_Object *p;
 	Object() : p(nullptr)
 	{
