@@ -1,8 +1,9 @@
-#include "test.h"
 #include "../jstream.h"
+#include "gtest/gtest.h"
+#include "test.h"
+#include <algorithm>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <algorithm>
 
 #ifdef _WIN32
 #include <io.h>
@@ -81,6 +82,16 @@ std::vector<Event> parse_to_events(char const *json)
 	}
 
 	return events;
+}
+
+void test_parse_event(char const *json, std::vector<Event> const &expect)
+{
+	std::vector<Event> actual = parse_to_events(json);
+
+	ASSERT_EQ(actual.size(), expect.size());
+	for (size_t i = 0; i < actual.size(); i++) {
+		EXPECT_EQ(actual[i], expect[i]);
+	}
 }
 
 void print_events(std::vector<Event> const &events)
