@@ -3,9 +3,24 @@
 
 #include <string>
 #include <vector>
-#include "jstream.h"
+#include "../jstream.h"
 
 void test_all(bool print_result);
+
+struct Event {
+	jstream::StateType state;
+	std::string key;
+	std::string value;
+	std::string path;
+	bool operator == (Event const &other) const;
+	void puts() const;
+};
+
+const char *state_to_string(jstream::StateType state);
+std::vector<Event> parse_to_events(char const *json);
+void print_events(std::vector<Event> const &events);
+void print_events(char const *json);
+
 
 struct ModelContextProtocol {
 	std::string method;

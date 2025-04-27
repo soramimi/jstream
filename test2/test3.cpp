@@ -1,5 +1,5 @@
 
-#include "../test.h"
+#include "test.h"
 #include <gtest/gtest.h>
 #include <variant>
 

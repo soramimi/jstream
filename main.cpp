@@ -6,45 +6,9 @@
 #include <iostream>
 #include <assert.h>
 
-
-// testing google access token
-
-std::ostream &operator << (std::ostream &out, GoogleAccessToken const &token)
-{
-	out << token.stringify();
-	return out;
-}
+using namespace jstream;
 
 
-GoogleAccessToken test_google_access_token()
-{
-	std::string input = R"---(
-{
-"access_token": "qwerty123",
-"expires_in": 3599,
-"scope": "https://www.googleapis.com/auth/userinfo.profile",
-"token_type": "Bearer",
-"id_token": "abcdefg"
-}
-)---";
-
-	GoogleAccessToken out;
-	jstream::Reader reader(input);
-	while (reader.next()) {
-		if (reader.match("{access_token")) {
-			out.access_token = reader.string();
-		} else if (reader.match("{expires_in")) {
-			out.expires_in = reader.string();
-		} else if (reader.match("{scope")) {
-			out.scope = reader.string();
-		} else if (reader.match("{token_type")) {
-			out.token_type = reader.string();
-		} else if (reader.match("{id_token")) {
-			out.id_token = reader.string();
-		}
-	}
-	return out;
-}
 
 void main2()
 {
@@ -67,12 +31,71 @@ void main2()
 	});
 }
 
+
+void test()
+{
+	char const *json = R"---(
+{
+   "book":[
+	  {
+		 "id":"444",
+		 "language":"C",
+		 "edition":"First",
+		 "author":"Dennis Ritchie"
+	  },
+	  {
+		 "id":"555",
+		 "language":"C++",
+		 "edition":"Second",
+		 "author":"Bjarne Stroustrup"
+	  }
+   ]
+}
+)---";
+
+	std::vector<Event> expect = {
+		{StartObject,    "",                        "",                        "{"},
+		{Key,            "book",                    "",                        "{book"},
+		{StartArray,     "book",                    "",                        "{book["},
+		{StartObject,    "",                        "",                        "{book[{"},
+		{Key,            "id",                      "",                        "{book[{id"},
+		{String,         "",                        "444",                     "{book[{id"},
+		{Key,            "language",                "",                        "{book[{language"},
+		{String,         "",                        "C",                       "{book[{language"},
+		{Key,            "edition",                 "",                        "{book[{edition"},
+		{String,         "",                        "First",                   "{book[{edition"},
+		{Key,            "author",                  "",                        "{book[{author"},
+		{String,         "",                        "Dennis Ritchie",          "{book[{author"},
+		{EndObject,      "",                        "",                        "{book["},
+		{StartObject,    "",                        "",                        "{book[{"},
+		{Key,            "id",                      "",                        "{book[{id"},
+		{String,         "",                        "555",                     "{book[{id"},
+		{Key,            "language",                "",                        "{book[{language"},
+		{String,         "",                        "C++",                     "{book[{language"},
+		{Key,            "edition",                 "",                        "{book[{edition"},
+		{String,         "",                        "Second",                  "{book[{edition"},
+		{Key,            "author",                  "",                        "{book[{author"},
+		{String,         "",                        "Bjarne Stroustrup",       "{book[{author"},
+		{EndObject,      "",                        "",                        "{book["},
+		{EndArray,       "book",                    "",                        "{book"},
+		{EndObject,      "",                        "",                        ""},
+	};
+
+	std::vector<Event> actual = parse_to_events(json);
+
+	assert(actual.size() == expect.size());
+	for (size_t i = 0; i < actual.size(); i++) {
+		assert(actual[i] == expect[i]);
+	}
+
+}
+
 int main()
 {
 #if 0
 	test_all(true);
-#elif 0
-	test_mcp();
+#elif 1
+	test();
 #else
 	auto t = test_google_access_token();
 	std::cout << t;

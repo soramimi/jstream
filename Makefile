@@ -1,4 +1,4 @@
-CXXFLAGS = -std=c++11
+CXXFLAGS = -std=c++17
 
 all: a.out
 

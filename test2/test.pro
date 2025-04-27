@@ -7,8 +7,12 @@ TARGET = test2
 
 LIBS += -lgtest
 
-HEADERS += ../test.h ../jstream.h
+HEADERS += \
+    test.h \
+    ../jstream.h
 SOURCES += main.cpp \
+    test.cpp \
     test1.cpp \
     test2.cpp \
-    test3.cpp
+    test3.cpp \
+    test4.cpp
