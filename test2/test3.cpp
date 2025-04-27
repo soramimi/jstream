@@ -218,32 +218,30 @@ TEST(Json, Extreme1)
 					} while (reader.next());
 				} else if (reader.match("{data[{user{active")) {
 					data.user.active = reader.istrue();
-				} else if (reader.match("{data[{history[*")) {
-					if (reader.is_start_object()) {
-						ParsedData::Data::History his;
-						reader.nest();
-						do {
-							if (reader.match("{data[{history[{action")) {
-								his.action = reader.string();
-							} else if (reader.match("{data[{history[{timestamp")) {
-								his.timestamp = reader.string();
-							} else if (reader.match("{data[{history[{changes[*")) {
-								ParsedData::Data::History::Change chg;
-								reader.nest();
-								do {
-									if (reader.match("{data[{history[{changes[{field")) {
-										chg.field = reader.string();
-									} else if (reader.match("{data[{history[{changes[{foo")) {
-										chg.foo = reader.string();
-									} else if (reader.match("{data[{history[{changes[{bar")) {
-										chg.bar = reader.string();
-									}
-								} while (reader.next());
-								his.changes.push_back(chg);
-							}
-						} while (reader.next());
-						data.history.push_back(his);
-					}
+				} else if (reader.match_start_object("{data[{history[*")) {
+					ParsedData::Data::History his;
+					reader.nest();
+					do {
+						if (reader.match("{data[{history[{action")) {
+							his.action = reader.string();
+						} else if (reader.match("{data[{history[{timestamp")) {
+							his.timestamp = reader.string();
+						} else if (reader.match("{data[{history[{changes[*")) {
+							ParsedData::Data::History::Change chg;
+							reader.nest();
+							do {
+								if (reader.match("{data[{history[{changes[{field")) {
+									chg.field = reader.string();
+								} else if (reader.match("{data[{history[{changes[{foo")) {
+									chg.foo = reader.string();
+								} else if (reader.match("{data[{history[{changes[{bar")) {
+									chg.bar = reader.string();
+								}
+							} while (reader.next());
+							his.changes.push_back(chg);
+						}
+					} while (reader.next());
+					data.history.push_back(his);
 				} else if (reader.match("{data[{user{profile{bio")) {
 					std::string s = reader.string();
 					data.user.profile.bio = reader.string();

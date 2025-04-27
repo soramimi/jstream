@@ -46,31 +46,6 @@ GoogleAccessToken test_google_access_token()
 	return out;
 }
 
-GoogleAccessToken test_google_access_token2()
-{
-	std::string input = R"---(
-{
-"access_token": "qwerty123",
-"expires_in": 3599,
-"scope": "https://www.googleapis.com/auth/userinfo.profile",
-"token_type": "Bearer",
-"id_token": "abcdefg"
-}
-)---";
-
-	GoogleAccessToken out;
-	jstream::Reader::rule_for_string_t rule;
-	jstream::Reader reader(input);
-	rule["{access_token"] = &out.access_token;
-	rule["{expires_in"] = &out.expires_in;
-	rule["{scope"] = &out.scope;
-	rule["{token_type"] = &out.token_type;
-	rule["{id_token"] = &out.id_token;
-	reader.parse(rule);
-
-	return out;
-}
-
 void main2()
 {
 	setlocale(LC_ALL, "fr-FR");
@@ -92,54 +67,10 @@ void main2()
 	});
 }
 
-void unexpected_deep_nesting_test()
-{
-	char const *json = R"---(
-	{
-		"unexpected": {
-			"values": [
-				"deep",
-				{
-					"nesting": {
-						"level": 6
-					}
-				},
-				"done"
-			]
-		}
-	}
-)---";
-
-	std::vector<std::string> v;
-
-	jstream::Reader r(json);
-	while (r.next()) {
-		if (r.match("{unexpected{values[*")) {
-			if (r.isvalue()) {
-				v.push_back(r.string());
-			} else if (r.is_start_object()) {
-				r.nest();
-				do {
-					if (r.match("{unexpected{values[{nesting{level")) {
-						v.push_back(r.string());
-					}
-				} while (r.next());
-			}
-		}
-	}
-
-	assert(v.size() == 3);
-	assert(v[0] == "deep");
-	assert(v[1] == "6");
-	assert(v[2] == "done");
-}
-
 int main()
 {
 #if 0
 	test_all(true);
-#elif 1
-	unexpected_deep_nesting_test();
 #elif 0
 	test_mcp();
 #else

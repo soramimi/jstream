@@ -1097,40 +1097,19 @@ public:
 		return false;
 	}
 
-	typedef std::map<std::string_view, std::string *> rule_for_string_t;
-	typedef std::map<std::string_view, std::vector<std::string> *> rule_for_strings_t;
-
-	void parse(rule_for_string_t const &rule, char sep = ',')
+	bool match_start_object(char const *path) const
 	{
-		reset();
-		while (next()) {
-			for (auto &t : rule) {
-				std::vector<std::string> vals;
-				if (match(t.first.data(), &vals, true)) {
-					for (auto const &s : vals) {
-						if (!t.second->empty()) {
-							*t.second += sep;
-						}
-						*t.second += s;
-					}
-				}
-			}
-		}
-	}
-
-	void parse(rule_for_strings_t const &rule)
-	{
-		reset();
-		while (next()) {
-			for (auto &t : rule) {
-				match(t.first.data(), t.second, false);
-			}
-		}
+		return state() == StartObject && match(path);
 	}
 
 	bool match_end_object(char const *path) const
 	{
 		return state() == EndObject && match(path);
+	}
+
+	bool match_start_array(char const *path) const
+	{
+		return state() == StartArray && match(path);
 	}
 
 	bool match_end_array(char const *path) const

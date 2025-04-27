@@ -75,7 +75,7 @@ TEST(Json, GoogleForms1)
 
 	jstream::Reader r(json);
 	while (r.next()) {
-		if (r.match("{responses[*") && r.is_start_object()) {
+		if (r.match_start_object("{responses[*")) {
 			ParsedData::Response response;
 			r.nest();
 			do {
@@ -85,22 +85,20 @@ TEST(Json, GoogleForms1)
 					response.createTime = r.string();
 				} else if (r.match("{responses[{lastSubmittedTime")) {
 					response.lastSubmittedTime = r.string();
-				} else if (r.match("{responses[{answers{*")) {
-					if (r.is_start_object()) {
-						r.nest();
-						ParsedData::Response::Answers answers;
-						answers.key = r.key();
-						do {
-							if (r.match("{responses[{answers{*{questionId")) {
-								answers.questionId = r.string();
-							} else if (r.match("{responses[{answers{*{textAnswers{answers[{value")) {
-								ParsedData::Response::Answers::TextAnswers::Answer a;
-								a.value = r.string();
-								answers.textAnswers.answers.push_back(a);
-							}
-						} while (r.next());
-						response.answers.push_back(answers);
-					}
+				} else if (r.match_start_object("{responses[{answers{*")) {
+					r.nest();
+					ParsedData::Response::Answers answers;
+					answers.key = r.key();
+					do {
+						if (r.match("{responses[{answers{*{questionId")) {
+							answers.questionId = r.string();
+						} else if (r.match("{responses[{answers{*{textAnswers{answers[{value")) {
+							ParsedData::Response::Answers::TextAnswers::Answer a;
+							a.value = r.string();
+							answers.textAnswers.answers.push_back(a);
+						}
+					} while (r.next());
+					response.answers.push_back(answers);
 				}
 			} while (r.next());
 			parsed.responses.push_back(response);

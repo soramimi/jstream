@@ -441,15 +441,13 @@ TEST(Json, Array2)
 
 	jstream::Reader r(json);
 	while (r.next()) {
-		if (r.match("{a[**")) {
-			if (r.is_start_array()) {
-				r.nest();
-				do {
-					if (r.match("{a[[*") && r.isnumber()) {
-						v.push_back(r.number());
-					}
-				} while (r.next());
-			}
+		if (r.match_start_array("{a[**")) {
+			r.nest();
+			do {
+				if (r.match("{a[[*") && r.isnumber()) {
+					v.push_back(r.number());
+				}
+			} while (r.next());
 		}
 	}
 	ASSERT_EQ(v.size(), 4);
@@ -478,19 +476,17 @@ TEST(Json, Array3)
 
 	jstream::Reader r(json);
 	while (r.next()) {
-		if (r.match("[**")) {
-			if (r.is_start_object()) {
-				Item item;
-				r.nest();
-				do {
-					if (r.match("[{name")) {
-						item.name = r.string();
-					} else if (r.match("[{price")) {
-						item.price = r.number();
-					}
-				} while (r.next());
-				items.push_back(item);
-			}
+		if (r.match_start_object("[**")) {
+			Item item;
+			r.nest();
+			do {
+				if (r.match("[{name")) {
+					item.name = r.string();
+				} else if (r.match("[{price")) {
+					item.price = r.number();
+				}
+			} while (r.next());
+			items.push_back(item);
 		}
 	}
 
