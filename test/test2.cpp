@@ -163,3 +163,81 @@ TEST(Json, OAuth1)
 	EXPECT_EQ(parsed.id_token, "abcdefg");
 }
 
+TEST(Json, MinioConfig1)
+{
+	char const *json = R"---(
+{
+		"version": "10",
+		"aliases": {
+				"mary": {
+						"url": "http://192.168.0.80:9000",
+						"accessKey": "aaaaaaaaaaaaaaaaaaaa",
+						"secretKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+						"api": "s3v4",
+						"path": "auto"
+				},
+				"play": {
+						"url": "https://play.min.io",
+						"accessKey": "cccccccccccccccccccc",
+						"secretKey": "dddddddddddddddddddddddddddddddddddddddd",
+						"api": "S3v4",
+						"path": "auto"
+				}
+		}
+}
+)---";
+
+	struct ParsedData {
+		std::string version;
+		struct Alias {
+			std::string key;
+			std::string url;
+			std::string accessKey;
+			std::string secretKey;
+			std::string api;
+			std::string path;
+		};
+		std::vector<Alias> aliases;
+	} parsed;
+
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{version")) {
+			parsed.version = r.string();
+		} else if (r.match_start_object("{aliases{*")) {
+			ParsedData::Alias alias;
+			alias.key = r.key();
+			r.nest();
+			do {
+				if (r.match("{aliases{*{url")) {
+					alias.url = r.string();
+				} else if (r.match("{aliases{*{accessKey")) {
+					alias.accessKey = r.string();
+				} else if (r.match("{aliases{*{secretKey")) {
+					alias.secretKey = r.string();
+				} else if (r.match("{aliases{*{api")) {
+					alias.api = r.string();
+				} else if (r.match("{aliases{*{path")) {
+					alias.path = r.string();
+				}
+			} while (r.next());
+			parsed.aliases.push_back(alias);
+		}
+	}
+
+	EXPECT_EQ(parsed.version, "10");
+	ASSERT_EQ(parsed.aliases.size(), 2);
+	EXPECT_EQ(parsed.aliases[0].key, "mary");
+	EXPECT_EQ(parsed.aliases[0].url, "http://192.168.0.80:9000");
+	EXPECT_EQ(parsed.aliases[0].accessKey, "aaaaaaaaaaaaaaaaaaaa");
+	EXPECT_EQ(parsed.aliases[0].secretKey, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+	EXPECT_EQ(parsed.aliases[0].api, "s3v4");
+	EXPECT_EQ(parsed.aliases[0].path, "auto");
+	EXPECT_EQ(parsed.aliases[1].key, "play");
+	EXPECT_EQ(parsed.aliases[1].url, "https://play.min.io");
+	EXPECT_EQ(parsed.aliases[1].accessKey, "cccccccccccccccccccc");
+	EXPECT_EQ(parsed.aliases[1].secretKey, "dddddddddddddddddddddddddddddddddddddddd");
+	EXPECT_EQ(parsed.aliases[1].api, "S3v4");
+	EXPECT_EQ(parsed.aliases[1].path, "auto");
+}
+
