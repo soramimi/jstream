@@ -1,9 +1,7 @@
 
 #include "jstream.h"
-#include "test.h"
+#include "test/test.h"
 #include <stdio.h>
-#include <map>
-#include <iostream>
 #include <assert.h>
 
 using namespace jstream;
@@ -12,6 +10,7 @@ using namespace jstream;
 
 void main2()
 {
+#if 0
 	setlocale(LC_ALL, "fr-FR");
 	char const *json = R"---(
 { "num": 123456.789 }
@@ -29,8 +28,33 @@ void main2()
 	w.object({}, [&]() {
 		w.number("num", 123456.789);
 	});
+#endif
 }
 
+
+void print()
+{
+	char const *json = R"---(
+{
+   "book":[
+	  {
+		 "id":"444",
+		 "language":"C",
+		 "edition":"First",
+		 "author":"Dennis Ritchie"
+	  },
+	  {
+		 "id":"555",
+		 "language":"C++",
+		 "edition":"Second",
+		 "author":"Bjarne Stroustrup"
+	  }
+   ]
+}
+)---";
+
+	print_events(json);
+}
 
 void test()
 {
@@ -90,12 +114,26 @@ void test()
 
 }
 
+void test2()
+{
+	jstream::Writer w([](char const *p, int n) {
+		fwrite(p, 1, n, stdout);
+	});
+
+	w.object({}, [&]() {
+		w.string("name", "John Doe");
+		w.string("age", "30");
+		w.string("city", "New York");
+	});
+
+}
+
 int main()
 {
 #if 0
 	test_all(true);
 #elif 1
-	test();
+	print();
 #else
 	auto t = test_google_access_token();
 	std::cout << t;

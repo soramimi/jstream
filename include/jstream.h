@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -15,6 +14,65 @@
 // #include <charconv> // C++17
 
 namespace jstream {
+
+static inline std::vector<char> encode_json_string(std::string_view const &in)
+{
+	std::vector<char> ret;
+	char const *ptr = in.data();
+	char const *end = ptr + in.size();
+	ret.reserve(end - ptr + 10);
+	while (ptr < end) {
+		int c = (unsigned char)*ptr;
+		ptr++;
+		switch (c) {
+		case '\"': ret.push_back('\\'); ret.push_back('\"'); break;
+		case '\\': ret.push_back('\\'); ret.push_back('\\'); break;
+		case '\b': ret.push_back('\\'); ret.push_back('b'); break;
+		case '\f': ret.push_back('\\'); ret.push_back('f'); break;
+		case '\n': ret.push_back('\\'); ret.push_back('n'); break;
+		case '\r': ret.push_back('\\'); ret.push_back('r'); break;
+		case '\t': ret.push_back('\\'); ret.push_back('t'); break;
+		default:
+			if (c >= 0x20 && c < 0x7f) {
+				ret.push_back(c);
+			} else {
+				uint32_t u = 0;
+				if ((c & 0xe0) == 0xc0 && ptr < end) {
+					if ((ptr[0] & 0xc0) == 0x80) {
+						int d = (unsigned char)ptr[0];
+						u = ((c & 0x1f) << 6) | (d & 0x3f);
+					}
+				} else if ((c & 0xf0) == 0xe0 && ptr + 1 < end) {
+					if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80) {
+						int d = (unsigned char)ptr[0];
+						int e = (unsigned char)ptr[1];
+						u = ((c & 0x0f) << 12) | ((d & 0x3f) << 6) | (e & 0x3f);
+					}
+				} else if ((c & 0xf8) == 0xf0 && ptr + 2 < end) {
+					if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80 && (ptr[2] & 0xc0) == 0x80) {
+						int d = (unsigned char)ptr[0];
+						int e = (unsigned char)ptr[1];
+						int f = (unsigned char)ptr[2];
+						u = ((c & 0x0f) << 18) | ((d & 0x3f) << 12) | ((e & 0x3f) << 6) | (f & 0x3f);
+					}
+				}
+				if (u != 0) {
+					char tmp[20];
+					if (u >= 0x10000 && u < 0x110000) {
+						uint16_t h = (u - 0x10000) / 0x400 + 0xd800;
+						uint16_t l = (u - 0x10000) % 0x400 + 0xdc00;
+						sprintf(tmp, "\\u%04X\\u%04X", h, l);
+						ret.insert(ret.end(), tmp, tmp + 12);
+					} else {
+						sprintf(tmp, "\\u%04X", u);
+						ret.insert(ret.end(), tmp, tmp + 6);
+					}
+				}
+			}
+		}
+	}
+	return ret;
+}
 
 class misc {
 private:
@@ -1182,68 +1240,15 @@ private:
 		return true;
 	}
 
-	bool print_string(std::string const &s)
+	void print_string(std::string const &s)
 	{
-		char const *ptr = s.c_str();
-		char const *end = ptr + s.size();
-		std::vector<char> buf;
-		buf.reserve(end - ptr + 10);
-		while (ptr < end) {
-			int c = (unsigned char)*ptr;
-			ptr++;
-			switch (c) {
-			case '\"': buf.push_back('\\'); buf.push_back('\"'); break;
-			case '\\': buf.push_back('\\'); buf.push_back('\\'); break;
-			case '\b': buf.push_back('\\'); buf.push_back('b'); break;
-			case '\f': buf.push_back('\\'); buf.push_back('f'); break;
-			case '\n': buf.push_back('\\'); buf.push_back('n'); break;
-			case '\r': buf.push_back('\\'); buf.push_back('r'); break;
-			case '\t': buf.push_back('\\'); buf.push_back('t'); break;
-			default:
-				if (c >= 0x20 && c < 0x7f) {
-					buf.push_back(c);
-				} else {
-					uint32_t u = 0;
-					if ((c & 0xe0) == 0xc0 && ptr < end) {
-						if ((ptr[0] & 0xc0) == 0x80) {
-							int d = (unsigned char)ptr[0];
-							u = ((c & 0x1f) << 6) | (d & 0x3f);
-						}
-					} else if ((c & 0xf0) == 0xe0 && ptr + 1 < end) {
-						if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80) {
-							int d = (unsigned char)ptr[0];
-							int e = (unsigned char)ptr[1];
-							u = ((c & 0x0f) << 12) | ((d & 0x3f) << 6) | (e & 0x3f);
-						}
-					} else if ((c & 0xf8) == 0xf0 && ptr + 2 < end) {
-						if ((ptr[0] & 0xc0) == 0x80 && (ptr[1] & 0xc0) == 0x80 && (ptr[2] & 0xc0) == 0x80) {
-							int d = (unsigned char)ptr[0];
-							int e = (unsigned char)ptr[1];
-							int f = (unsigned char)ptr[2];
-							u = ((c & 0x0f) << 18) | ((d & 0x3f) << 12) | ((e & 0x3f) << 6) | (f & 0x3f);
-						}
-					}
-					if (u != 0) {
-						char tmp[20];
-						if (u >= 0x10000 && u < 0x110000) {
-							uint16_t h = (u - 0x10000) / 0x400 + 0xd800;
-							uint16_t l = (u - 0x10000) % 0x400 + 0xdc00;
-							sprintf(tmp, "\\u%04X\\u%04X", h, l);
-							buf.insert(buf.end(), tmp, tmp + 12);
-						} else {
-							sprintf(tmp, "\\u%04X", u);
-							buf.insert(buf.end(), tmp, tmp + 6);
-						}
-					}
-				}
-			}
-		}
+		std::vector<char> buf = encode_json_string(s);
+
 		print('\"');
 		if (!buf.empty()) {
 			print(buf.data(), buf.size());
 		}
 		print('\"');
-		return true;
 	}
 
 	bool print_value(std::string const &name, std::function<bool ()> const &fn)
@@ -1384,7 +1389,8 @@ public:
 	void string(std::string const &name, std::string const &s)
 	{
 		print_value(name, [&](){
-			return print_string(s);
+			print_string(s);
+			return true;
 		});
 	}
 
@@ -1397,7 +1403,6 @@ public:
 	{
 		print_value(name, [&](){
 			switch (v) {
-				break;
 			case False:
 				print("false");
 				break;

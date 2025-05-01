@@ -3,7 +3,7 @@
 
 #include <string>
 #include <vector>
-#include "../jstream.h"
+#include "jstream.h"
 
 void test_all(bool print_result);
 
@@ -19,6 +19,7 @@ struct Event {
 const char *state_to_string(jstream::StateType state);
 std::vector<Event> parse_to_events(char const *json);
 void test_parse_event(char const *json, std::vector<Event> const &expect);
+
 void print_events(std::vector<Event> const &events);
 void print_events(char const *json);
 

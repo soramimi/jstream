@@ -6,10 +6,10 @@ CONFIG -= qt
 
 DESTDIR = $$PWD
 
-SOURCES += main.cpp \
-	test.cpp
+INCLUDEPATH += include
+
+SOURCES += main.cpp test/test.cpp
 
 HEADERS += \
-	jstream.h \
-	test.h
+	include/jstream.h
 
