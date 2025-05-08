@@ -1,6 +1,6 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/soramimi/jstream)
 
-# jstream
+# Jstream
 
 A lightweight, flexible JSON parser and generator library for C++.
 

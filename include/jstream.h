@@ -1,3 +1,7 @@
+// Jstream - Header-only Streaming pull-based JSON Parser and Generator
+// Copyright (C) 2025 S.Fuchita (soramimi)
+// This software is distributed under the MIT license.
+
 #ifndef JSTREAM_H_
 #define JSTREAM_H_
 
