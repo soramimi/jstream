@@ -9,3 +9,5 @@ myapp
 *.d
 build/
 .vscode/
+obj/
+bin/
