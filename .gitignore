@@ -4,6 +4,8 @@ jstream.pdb
 jstream.exe
 jstream.ilk
 a.out
+myapp
 *.o
+*.d
 build/
 .vscode/
