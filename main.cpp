@@ -7,6 +7,57 @@
 using namespace jstream;
 
 
+void main1()
+{
+	char const *json = R"---(
+{
+   "book":[
+	  {
+		 "id":"444",
+		 "language":"C",
+		 "edition":"First",
+		 "author":"Dennis Ritchie"
+	  },
+	  {
+		 "id":"555",
+		 "language":"C++",
+		 "edition":"Second",
+		 "author":"Bjarne Stroustrup"
+	  }
+   ]
+}
+)---";
+
+	struct ParsedData {
+		std::string id;
+		std::string language;
+		std::string edition;
+		std::string author;
+	};
+	std::vector<ParsedData> books;
+
+	jstream::Reader reader(json);
+	while (reader.next()) {
+		if (reader.match_start_object("{book[**")) {
+			reader.nest();
+			ParsedData book;
+			do {
+				if (reader.match("{book[{id")) {
+					book.id = reader.string();
+				} else if (reader.match("{book[{language")) {
+					book.language = reader.string();
+				} else if (reader.match("{book[{edition")) {
+					book.edition = reader.string();
+				} else if (reader.match("{book[{author")) {
+					book.author = reader.string();
+				}
+			} while (reader.next());
+			books.push_back(book);
+		}
+	}
+	printf("%d\n", books.size());
+}
+
 
 void main2()
 {
@@ -132,11 +183,10 @@ int main()
 {
 #if 0
 	test_all(true);
-#elif 1
+#elif 0
 	print();
 #else
-	auto t = test_google_access_token();
-	std::cout << t;
+	main1();
 #endif
 
 	return 0;

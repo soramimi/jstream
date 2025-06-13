@@ -879,6 +879,12 @@ private:
 		}
 		return false;
 	}
+	static void _init(ParserData *d)
+	{
+		d->begin = nullptr;
+		d->end = nullptr;
+		d->ptr = nullptr;
+	}
 public:
 	Reader(std::string_view const &sv)
 	{
@@ -892,6 +898,22 @@ public:
 	{
 		parse(ptr, len);
 	}
+	Reader(Reader &&r)
+		: d(std::move(r.d))
+	{
+		_init(&r.d);
+	}
+	Reader &operator=(Reader &&r)
+	{
+		if (this != &r) {
+			d = std::move(r.d);
+			_init(&r.d);
+		}
+		return *this;
+	}
+	Reader(Reader const &r) = delete;
+	Reader &operator=(Reader const &r) = delete;
+
 	void allow_comment(bool allow)
 	{
 		d.allow_comment = allow;
