@@ -576,11 +576,8 @@ public class Reader {
 		_errors.Add(error);
 	}
 
-	public bool Match(string path, List<string>? values = null, bool clear = true)
+	public bool Match(string path)
 	{
-		if (values != null && clear)
-			values.Clear();
-
 		if (!IsObject && !IsArray && !IsValue)
 			return false;
 
@@ -601,18 +598,7 @@ public class Reader {
 			// * ワイルドカード処理
 			if (pathPos < path.Length && path[pathPos] == '*' && depthItem.EndsWith('{')) {
 				if (pathPos + 1 >= path.Length) {
-					if (State == StateType.StartObject && i + 1 == _depth.Count) {
-						if (values != null) {
-							string t = string.Empty;
-							for (int j = i; j < _depth.Count; j++)
-								t += _depth[j];
-							if (IsValue)
-								t += _key;
-							values.Add(t);
-						}
-						return true;
-					}
-					return false;
+					return (State == StateType.StartObject && i + 1 == _depth.Count);
 				} else if (pathPos + 1 < path.Length && path[pathPos + 1] == '{') {
 					pathPos += 2;
 					continue;
@@ -635,23 +621,12 @@ public class Reader {
 		}
 
 		if (pathPos < path.Length && path[pathPos] == '*') {
-			if (pathPos + 1 >= path.Length && _depth.Count > 0 &&
-				(IsValue || State == StateType.EndObject || State == StateType.EndArray)) {
-				if (values != null && IsValue)
-					values.Add(_key);
-				return true;
-			}
-			return false;
+			return (pathPos + 1 >= path.Length && _depth.Count > 0
+				&& (IsValue || State == StateType.EndObject || State == StateType.EndArray));
 		}
 
 		string remainingPath = pathPos < path.Length ? path[pathPos..] : string.Empty;
-		if (remainingPath == _key) {
-			if (values != null && IsValue)
-				values.Add(StringValue);
-			return true;
-		}
-
-		return false;
+		return remainingPath == _key;
 	}
 
 	public bool MatchStartObject(string path) => State == StateType.StartObject && Match(path);
