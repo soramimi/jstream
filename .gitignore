@@ -11,3 +11,6 @@ build/
 .vscode/
 obj/
 bin/
+.vs/
+UpgradeLog.htm
+Backup/

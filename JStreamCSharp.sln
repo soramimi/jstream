@@ -7,6 +7,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JStream.Tests", "JStream.Tests\JStream.Tests.csproj", "{B1234567-1234-1234-1234-123456789ABC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JStream.Examples", "JStream.Examples\JStream.Examples.csproj", "{C1234567-1234-1234-1234-123456789ABC}"
+	ProjectSection(ProjectDependencies) = postProject
+		{A1234567-1234-1234-1234-123456789ABC} = {A1234567-1234-1234-1234-123456789ABC}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JStream.Benchmark", "JStream.Benchmark\JStream.Benchmark.csproj", "{D1234567-1234-1234-1234-123456789ABC}"
 EndProject
@@ -32,5 +35,11 @@ Global
 		{D1234567-1234-1234-1234-123456789ABC}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D1234567-1234-1234-1234-123456789ABC}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D1234567-1234-1234-1234-123456789ABC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F11CAA1B-54C8-4763-9061-E4DA61F022E4}
 	EndGlobalSection
 EndGlobal

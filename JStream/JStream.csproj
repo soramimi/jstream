@@ -13,5 +13,4 @@
     <RepositoryUrl>https://github.com/soramimi/jstream</RepositoryUrl>
     <PackageTags>json;parser;generator;streaming;c#</PackageTags>
   </PropertyGroup>
-
 </Project>
