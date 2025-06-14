@@ -1116,69 +1116,34 @@ public:
 		return {};
 	}
 
-	bool match(char const *path, std::vector<std::string> *vals = nullptr, bool clear = true) const
+	bool match(char const *path) const
 	{
-		if (vals && clear) {
-			vals->clear();
-		}
 		if (!isobject() && !isarray() && !isvalue()) return false;
 		size_t i;
 		for (i = 0; i < d.depth.size(); i++) {
 			std::string const &s = d.depth[i];
 			if (s.empty()) break;
-			if (path[0] == '*' && path[1] == '*' && path[2] == 0) {
-				return true;
-			}
-			if (path[0] == '*' && s.c_str()[s.size() - 1] == '{') {
-				if (path[1] == 0) {
-					if (state() == StartObject) {
-						if (i + 1 == d.depth.size()) {
-							if (vals) {
-								std::string t;
-								while (i < d.depth.size()) {
-									t += d.depth[i];
-									i++;
-								}
-								if (isvalue()) {
-									t += d.key;
-								}
-								vals->push_back(t);
-							}
-							return true;
-						}
+			if (path[0] == '*') {
+				if (path[2] == 0) return true;
+				if (s.c_str()[s.size() - 1] == '{') {
+					if (path[1] == 0) {
+						return (state() == StartObject && i + 1 == d.depth.size());
+					} else if (path[1] == '{') {
+						path += 2;
+						continue;
 					}
-					return false;
-				} else if (path[1] == '{') {
-					path += 2;
-					continue;
 				}
 			}
 			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
 			path += s.size();
 		}
-		if (path[0] == '*' && path[1] == '*' && path[2] == 0) {
-			return true;
-		}
 		if (path[0] == '*') {
-			if (path[1] == 0 && i == d.depth.size() && (isvalue() || state() == EndObject || state() == EndArray)) {
-				if (vals) {
-					std::string t;
-					if (isvalue()) {
-						t = d.key;
-					}
-					vals->push_back(t);
-				}
-				return true;
-			}
-			return false;
+			if (path[1] == '*' && path[2] == 0) return true;
+			return (path[1] == 0 && i == d.depth.size()
+					&& (isvalue() || state() == EndObject || state() == EndArray)
+					);
 		}
-		if (path == d.key) {
-			if (vals && isvalue()) {
-				vals->push_back(string());
-			}
-			return true;
-		}
-		return false;
+		return path == d.key;
 	}
 
 	bool match_start_object(char const *path) const
