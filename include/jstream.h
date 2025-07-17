@@ -1248,8 +1248,12 @@ private:
 
 		bool ok = fn();
 
-		if (!stack.empty()) stack.back()++;
-
+		if (!stack.empty()) {
+			stack.back()++;
+		}
+		if (stack.size() == 1) {
+			flush();
+		}
 		return ok;
 	}
 
@@ -1284,18 +1288,29 @@ private:
 		}
 		print_indent();
 	}
-public:
-	Writer(std::function<void (char const *p, int n)> fn = {})
+
+	void reset()
 	{
-		output_fn = fn;
 		stack.push_back(0);
 	}
 
-	~Writer()
+	void flush()
 	{
 		if (!stack.empty() && stack.front() > 0) {
 			print_newline();
 		}
+		reset();
+	}
+public:
+	Writer(std::function<void (char const *p, int n)> fn = {})
+	{
+		output_fn = fn;
+		reset();
+	}
+
+	~Writer()
+	{
+		flush();
 	}
 
 	void enable_indent(bool enabled)
@@ -1342,6 +1357,10 @@ public:
 	{
 		end_block();
 		print('}');
+
+		if (stack.size() == 1) {
+			flush();
+		}
 	}
 
 	void object(std::string const &name, std::function<void ()> const &fn)
@@ -1358,6 +1377,10 @@ public:
 	{
 		end_block();
 		print(']');
+
+		if (stack.size() == 1) {
+			flush();
+		}
 	}
 
 	void array(std::string const &name, std::function<void ()> const &fn)
