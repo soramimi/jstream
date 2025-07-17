@@ -77,9 +77,12 @@ public class Writer {
 		PrintName(name);
 		bool result = fn();
 
-		if (_stack.Count > 0)
+		if (_stack.Count > 0) {
 			_stack[^1]++;
-
+		}
+		if (_stack.Count == 1) {
+			Flush();
+		}
 		return result;
 	}
 
@@ -120,6 +123,20 @@ public class Writer {
 		PrintIndent();
 	}
 
+	private void Reset()
+	{
+		_stack.Clear();
+		_stack.Add(0);
+	}
+
+	private void Flush()
+	{
+		if (_stack.Count > 0 && _stack[0] > 0) {
+			PrintNewline();
+		}
+		Reset();
+	}
+
 	public void PrintName(string name)
 	{
 		if (_stack.Count > 0 && _stack[^1] > 0)
@@ -147,6 +164,10 @@ public class Writer {
 	{
 		EndBlock();
 		Print('}');
+
+		if (_stack.Count == 1) {
+			Flush();
+		}
 	}
 
 	public void Object(string name, Action fn)
@@ -163,6 +184,10 @@ public class Writer {
 	{
 		EndBlock();
 		Print(']');
+
+		if (_stack.Count == 1) {
+			Flush();
+		}
 	}
 
 	public void Array(string name, Action fn)

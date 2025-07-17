@@ -1291,6 +1291,7 @@ private:
 
 	void reset()
 	{
+		stack.clear();
 		stack.push_back(0);
 	}
 
