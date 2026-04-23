@@ -1,21 +1,20 @@
 // Jstream - Header-only Streaming pull-based JSON Parser and Generator
-// Copyright (C) 2025 S.Fuchita (soramimi)
+// Copyright (C) 2026 S.Fuchita (soramimi)
 // This software is distributed under the MIT license.
 
 #ifndef JSTREAM_H_
 #define JSTREAM_H_
 
+#include <assert.h>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <functional>
 #include <string>
 #include <string_view>
-#include <vector>
 #include <variant>
-#include <assert.h>
-
-// #include <charconv> // C++17
+#include <vector>
 
 namespace jstream {
 
@@ -210,6 +209,7 @@ public:
 		return value;
 	}
 
+#if 0
 	static std::string format_double(double val, bool allow_nan)
 	{
 		int precision = 15;
@@ -345,6 +345,30 @@ public:
 		}
 
 		return std::string(ptr, end - ptr);
+	}
+#endif
+	static std::string format_double(double val, bool allow_nan)
+	{
+		if (std::isnan(val)) {
+			if (allow_nan) {
+				return "NaN";
+			}
+			return {};
+		}
+		if (std::isinf(val)) {
+			if (allow_nan) {
+				return std::signbit(val) ? "-Infinity" : "Infinity";
+			}
+			return {};
+		}
+
+		// std::to_chars produces the shortest round-trip representation without locale dependency
+		char buf[32];
+		auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val);
+		if (ec != std::errc{}) {
+			return {};
+		}
+		return std::string(buf, ptr);
 	}
 };
 
