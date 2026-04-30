@@ -1198,9 +1198,10 @@ protected:
 		if (output_fn) {
 			output_fn(p, n);
 		} else {
-			for (size_t i = 0; i < n; i++) {
-				putchar(p[i]);
-			}
+			// for (size_t i = 0; i < n; i++) {
+			// 	putchar(p[i]);
+			// }
+			string_out.append(p, n);
 		}
 	}
 
@@ -1221,6 +1222,7 @@ protected:
 private:
 	std::vector<int> stack;
 	std::function<void (char const *p, int n)> output_fn;
+	std::string string_out;
 
 	bool enable_indent_ = true;
 	bool enable_newline_ = true;
@@ -1463,6 +1465,11 @@ public:
 	void null()
 	{
 		symbol({}, Null);
+	}
+
+	operator std::string () const
+	{
+		return string_out;
 	}
 };
 
