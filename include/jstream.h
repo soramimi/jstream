@@ -1140,30 +1140,36 @@ public:
 		return {};
 	}
 
-	bool match(char const *path) const
+	bool match(std::string_view path) const
 	{
 		if (!isobject() && !isarray() && !isvalue()) return false;
+		auto Path = [&](size_t i){ return i < path.size() ? path[i] : 0; };
 		size_t i;
 		for (i = 0; i < d.depth.size(); i++) {
 			std::string const &s = d.depth[i];
 			if (s.empty()) break;
-			if (path[0] == '*') {
-				if (path[2] == 0) return true;
+			if (Path(0) == '*') {
+				if (Path(1) == '*') {
+					if (Path(2) == 0) {
+						return true;
+					}
+					return false; // path syntax error: "**" must be at the end of path
+				}
 				if (s.c_str()[s.size() - 1] == '{') {
-					if (path[1] == 0) {
+					if (Path(1) == 0) {
 						return (state() == StartObject && i + 1 == d.depth.size());
-					} else if (path[1] == '{') {
-						path += 2;
+					} else if (Path(1) == '{') {
+						path = path.substr(2);
 						continue;
 					}
 				}
 			}
-			if (strncmp(path, s.c_str(), s.size()) != 0) return false;
-			path += s.size();
+			if (strncmp(path.data(), s.c_str(), s.size()) != 0) return false;
+			path = path.substr(s.size());
 		}
-		if (path[0] == '*') {
-			if (path[1] == '*' && path[2] == 0) return true;
-			return (path[1] == 0 && i == d.depth.size()
+		if (Path(0) == '*') {
+			if (Path(1) == '*' && Path(2) == 0) return true;
+			return (Path(1) == 0 && i == d.depth.size()
 					&& (isvalue() || state() == EndObject || state() == EndArray)
 					);
 		}
