@@ -1143,34 +1143,43 @@ public:
 	bool match(std::string_view path) const
 	{
 		if (!isobject() && !isarray() && !isvalue()) return false;
+
 		auto Path = [&](size_t i){ return i < path.size() ? path[i] : 0; };
+
+		const auto stat = state();
+
 		size_t i;
 		for (i = 0; i < d.depth.size(); i++) {
-			std::string const &s = d.depth[i];
-			if (s.empty()) break;
+			std::string const &element = d.depth[i];
+			if (element.empty()) return false; // something wrong
 			if (Path(0) == '*') {
 				if (Path(1) == '*') {
-					if (Path(2) == 0) {
-						return true;
-					}
+					if (Path(2) == 0) return true; // "**" matches any path
 					return false; // path syntax error: "**" must be at the end of path
 				}
-				if (s.c_str()[s.size() - 1] == '{') {
-					if (Path(1) == 0) {
-						return (state() == StartObject && i + 1 == d.depth.size());
-					} else if (Path(1) == '{') {
-						path = path.substr(2);
+				char c = element.c_str()[element.size() - 1]; // last character of element
+				if (c == '{' || c == '[') { // object or array
+					if (Path(1) == c) {
+						path = path.substr(2); // remove "*{" or "*["
 						continue;
+					}
+					if (Path(1) == 0) {
+						if (i + 1 == d.depth.size()) {
+							if (c == '{' && stat == StartObject) return true;
+							if (c == '[' && stat == StartArray) return true;
+						}
+						return false; // path syntax error: "*{" or "*[" must be at the end of path if no index specified
 					}
 				}
 			}
-			if (strncmp(path.data(), s.c_str(), s.size()) != 0) return false;
-			path = path.substr(s.size());
+			if (path.size() < element.size()) return false;
+			if (strncmp(path.data(), element.c_str(), element.size()) != 0) return false;
+			path = path.substr(element.size());
 		}
 		if (Path(0) == '*') {
 			if (Path(1) == '*' && Path(2) == 0) return true;
 			return (Path(1) == 0 && i == d.depth.size()
-					&& (isvalue() || state() == EndObject || state() == EndArray)
+					&& (isvalue() || stat == EndObject || stat == EndArray)
 					);
 		}
 		return path == d.key;
