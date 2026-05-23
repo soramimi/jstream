@@ -72,7 +72,7 @@ TEST(Json, GoogleForms1)
 
 	jstream::Reader r(json);
 	while (r.next()) {
-		if (r.match_start_object("{responses[*")) {
+		if (r.match("{responses[**")) {
 			ParsedData::Response response;
 			r.nest();
 			do {
@@ -201,7 +201,7 @@ TEST(Json, MinioConfig1)
 	while (r.next()) {
 		if (r.match("{version")) {
 			parsed.version = r.string();
-		} else if (r.match_start_object("{aliases{*")) {
+		} else if (r.match("{aliases{*")) {
 			ParsedData::Alias alias;
 			alias.key = r.key();
 			r.nest();

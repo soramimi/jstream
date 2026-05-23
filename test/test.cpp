@@ -59,7 +59,7 @@ std::vector<Event> parse_to_events(char const *json)
 			event.key = r.key();
 			break;
 		default:
-			if (r.isvalue()) {
+			if (r.is_constant()) {
 				event.value = r.string();
 			}
 			break;

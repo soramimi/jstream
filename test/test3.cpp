@@ -166,7 +166,7 @@ TEST(Json, Extreme1)
 			parsed.meta.id = reader.string();
 		} else if (reader.match("{meta{timestamp")) {
 			parsed.meta.timestamp = reader.string();
-		} else if (reader.match("{meta{flags[*") && reader.isvalue()) {
+		} else if (reader.match("{meta{flags[*") && reader.is_constant()) {
 			parsed.meta.flags += var(reader);
 		} else if (reader.match("{config{version")) {
 			parsed.config.version = reader.string();
@@ -179,7 +179,7 @@ TEST(Json, Extreme1)
 		} else if (reader.match("{config{features{experimental{parameters{gamma{enabled")) {
 			parsed.config.features.experimental.parameters.gamma.enabled = reader.istrue();
 		} else if (reader.match("{config{features{experimental{parameters{gamma{notes[**")) {
-			if (reader.isvalue()) {
+			if (reader.is_constant()) {
 				parsed.config.features.experimental.parameters.gamma.notes.push_back(reader.string());
 			} else if (reader.is_start_object()) {
 				reader.nest();
@@ -189,7 +189,7 @@ TEST(Json, Extreme1)
 					}
 				} while (reader.next());
 			}
-		} else if (reader.match("{config{features{deprecated[*") && reader.isvalue()) {
+		} else if (reader.match("{config{features{deprecated[*") && reader.is_constant()) {
 			parsed.config.features.deprecated.features += var(reader);
 		} else if (reader.match("{data[*")) {
 			ParsedData::Data data;
@@ -202,7 +202,7 @@ TEST(Json, Extreme1)
 				} else if (reader.match("{data[{user{roles[*")) {
 					reader.nest();
 					do {
-						if (reader.isvalue()) {
+						if (reader.is_constant()) {
 							data.user.roles.push_back(var(reader));
 						} else if (reader.is_start_object()) {
 							reader.nest();
@@ -277,7 +277,7 @@ TEST(Json, Extreme1)
 		} else if (reader.match("{misc{types{array[*")) {
 			reader.nest();
 			do {
-				if (reader.isvalue()) {
+				if (reader.is_constant()) {
 					arr(parsed.misc.types.array).push_back(reader.number());
 				}
 			} while (reader.next());
@@ -372,7 +372,7 @@ ModelContextProtocol parse_mcp(std::string const &input)
 			} else if (reader.match("{params{name")) {
 				mcp.params.name = reader.string();
 			} else if (reader.match("{params{arguments{*")) {
-				if (reader.isvalue()) {
+				if (reader.is_constant()) {
 					ModelContextProtocol::Params::Argument a;
 					a.name = reader.key();
 					a.value = reader.string();

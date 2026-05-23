@@ -263,7 +263,7 @@ TEST(Json, Json6)
 	jstream::Reader r(json);
 	while (r.next()) {
 		if (r.match("{unexpected{values[*")) {
-			if (r.isvalue()) {
+			if (r.is_constant()) {
 				v.push_back(r.string());
 			} else if (r.is_start_object()) {
 				r.nest();
@@ -668,5 +668,34 @@ TEST(Json, Array4)
 	EXPECT_EQ(books[1].language, "C++");
 	EXPECT_EQ(books[1].edition, "Second");
 	EXPECT_EQ(books[1].author, "Bjarne Stroustrup");
+}
+
+TEST(Json, Array5)
+{
+	// strange array with mixed types and nested objects, but we want to extract all numbers from it
+	char const *json = R"---(
+{
+	"a": [ {"x":12}, 34, "y":56, 78 ]
+}
+)---";
+
+	std::vector<double> v;
+
+	jstream::Reader r(json);
+	r.allow_key_in_array(true);
+	while (r.next()) {
+		if (r.match("{a[**")) {
+			r.nest([&](){
+				if (r.is_constant()) {
+					v.push_back(r.number());
+				}
+			});
+		}
+	}
+	ASSERT_EQ(v.size(), 4);
+	EXPECT_EQ(v[0], 12);
+	EXPECT_EQ(v[1], 34);
+	EXPECT_EQ(v[2], 56);
+	EXPECT_EQ(v[3], 78);
 }
 
