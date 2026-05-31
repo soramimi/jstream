@@ -516,3 +516,180 @@ TEST(Json, MCP3)
 	EXPECT_EQ(mcp.id, "25");
 }
 
+
+TEST(Json, MCP4)
+{
+	std::string input = R"---(
+{
+	"model": "claude-sonnet-4-6",
+	"id": "msg_01QgGhfNSoB4mDVt55i55LXr",
+	"type": "message",
+	"role": "assistant",
+	"content": [
+		{
+			"type": "text",
+			"text": "Sure! Let me fetch today's quote for you right away!"
+		},
+		{
+			"type": "tool_use",
+			"id": "toolu_01USQo1v4iheZJ4CxkDxV1ku",
+			"name": "get_quote_of_the_day",
+			"input": {},
+			"caller": {
+				"type": "direct"
+			}
+		}
+	],
+	"stop_reason": "tool_use",
+	"stop_sequence": null,
+	"stop_details": null,
+	"usage": {
+		"input_tokens": 354,
+		"cache_creation_input_tokens": 0,
+		"cache_read_input_tokens": 0,
+		"cache_creation": {
+			"ephemeral_5m_input_tokens": 0,
+			"ephemeral_1h_input_tokens": 0
+		},
+		"output_tokens": 47,
+		"service_tier": "standard",
+		"inference_geo": "global"
+	}
+}
+)---";
+	
+	struct Response {
+		std::string model;
+		std::string id;
+		std::string type;
+		std::string role;
+		struct ContentItem {
+			std::string type;
+			std::string text;
+			std::string id;
+			std::string name;
+			// std::string input;
+			std::string caller_type;
+		};
+		std::vector<ContentItem> content;
+		std::string stop_reason;
+		// std::string stop_sequence;
+		// std::string stop_details;
+		struct Usage {
+			int input_tokens;
+			int cache_creation_input_tokens;
+			int cache_read_input_tokens;
+			struct CacheCreation {
+				int ephemeral_5m_input_tokens;
+				int ephemeral_1h_input_tokens;
+			} cache_creation;
+			int output_tokens;
+			std::string service_tier;
+			std::string inference_geo;
+		} usage;
+		struct Error {
+			std::string type;
+			std::string message;
+		} error;
+	};
+	
+	bool completion = false;
+	std::string error_status;
+	std::string error_message;
+	
+	Response res;
+	
+	jstream::Reader reader(input);
+	while (reader.next()) {
+		if (reader.match("{model")) {
+			res.model = reader.string();
+		} else if (reader.match("{id")) {
+			res.id = reader.string();
+		} else if (reader.match("{type")) {
+			res.type = reader.string();
+			if (res.type == "error") {
+				completion = false;
+			}
+		} else if (reader.match("{role")) {
+			res.role = reader.string();
+		} else if (reader.match("{content[{**")) {
+			reader.nest();
+			Response::ContentItem item;
+			do {
+				if (reader.match("{content[{type")) {
+					item.type = reader.string();
+				} else if (reader.match("{content[{text")) {
+					item.text = reader.string();
+				} else if (reader.match("{content[{id")) {
+					item.id = reader.string();
+				} else if (reader.match("{content[{name")) {
+					item.name = reader.string();
+				} else if (reader.match("{content[{caller{type")) {
+					item.caller_type = reader.string();
+				}
+			} while (reader.next());
+			res.content.push_back(std::move(item));
+		} else if (reader.match("{stop_reason")) {
+			res.stop_reason = reader.string();
+			if (res.stop_reason == "end_turn") {
+				completion = true;
+			} else {
+				completion = false;
+				error_status = res.stop_reason;
+			}
+		} else if (reader.match("{usage{input_tokens")) {
+			res.usage.input_tokens = reader.number();
+		} else if (reader.match("{usage{cache_creation_input_tokens")) {
+			res.usage.cache_creation_input_tokens = reader.number();
+		} else if (reader.match("{usage{cache_read_input_tokens")) {
+			res.usage.cache_read_input_tokens = reader.number();
+		} else if (reader.match("{usage{cache_creation{ephemeral_5m_input_tokens")) {
+			res.usage.cache_creation.ephemeral_5m_input_tokens = reader.number();
+		} else if (reader.match("{usage{cache_creation{ephemeral_1h_input_tokens")) {
+			res.usage.cache_creation.ephemeral_1h_input_tokens = reader.number();
+		} else if (reader.match("{usage{output_tokens")) {
+			res.usage.output_tokens = reader.number();
+		} else if (reader.match("{usage{service_tier")) {
+			res.usage.service_tier = reader.string();
+		} else if (reader.match("{usage{inference_geo")) {
+			res.usage.inference_geo = reader.string();
+		} else if (reader.match("{error{type")) {
+			error_status = reader.string();
+			completion = false;
+		} else if (reader.match("{error{message")) {
+			error_message = reader.string();
+			completion = false;
+		}
+	}
+	
+	EXPECT_EQ(completion, false);
+	EXPECT_EQ(error_status, "tool_use");
+	
+	EXPECT_EQ(res.model, "claude-sonnet-4-6");
+	EXPECT_EQ(res.id, "msg_01QgGhfNSoB4mDVt55i55LXr");
+	EXPECT_EQ(res.type, "message");
+	EXPECT_EQ(res.role, "assistant");
+	ASSERT_EQ(res.content.size(), 2);
+	EXPECT_EQ(res.content[0].type, "text");
+	EXPECT_EQ(res.content[0].text, "Sure! Let me fetch today's quote for you right away!");
+	EXPECT_EQ(res.content[1].type, "tool_use");
+	EXPECT_EQ(res.content[1].id, "toolu_01USQo1v4iheZJ4CxkDxV1ku");
+	EXPECT_EQ(res.content[1].name, "get_quote_of_the_day");
+	EXPECT_EQ(res.content[1].caller_type, "direct");
+	EXPECT_EQ(res.stop_reason, "tool_use");
+	EXPECT_EQ(res.usage.input_tokens, 354);
+	EXPECT_EQ(res.usage.cache_creation_input_tokens, 0);
+	EXPECT_EQ(res.usage.cache_read_input_tokens, 0);
+	EXPECT_EQ(res.usage.cache_creation.ephemeral_5m_input_tokens, 0);
+	EXPECT_EQ(res.usage.cache_creation.ephemeral_1h_input_tokens, 0);
+	EXPECT_EQ(res.usage.output_tokens, 47);
+	EXPECT_EQ(res.usage.service_tier, "standard");
+	EXPECT_EQ(res.usage.inference_geo, "global");
+}
+
+
+
+
+
+
+

@@ -699,3 +699,44 @@ TEST(Json, Array5)
 	EXPECT_EQ(v[3], 78);
 }
 
+TEST(Json, Writer1)
+{
+	std::string json;
+	
+	struct Record {
+		std::string name;
+		int age;
+		std::string city;
+	};
+	
+	Record rec;
+	
+	// generating json by Writer
+	
+	auto writer = [&](char const *p, size_t n){
+		json.append(p, n);
+	};
+	jstream::Writer w(writer);
+	w.object({}, [&](){
+		w.string("名前", "山田太郎");
+		w.number("年齢", 30);
+		w.string("都市", "東京");
+	});
+	
+	// parsing json by Reader
+	
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{名前")) {
+			rec.name = r.string();
+		} else if (r.match("{年齢")) {
+			rec.age = r.number();
+		} else if (r.match("{都市")) {
+			rec.city = r.string();
+		}
+	}
+	
+	EXPECT_EQ(rec.name, "山田太郎");
+	EXPECT_EQ(rec.age, 30);
+	EXPECT_EQ(rec.city, "東京");
+}
