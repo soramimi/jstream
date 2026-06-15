@@ -164,7 +164,7 @@ void perform()
 			parsed.meta.id = reader.string();
 		} else if (reader.match("{meta{timestamp")) {
 			parsed.meta.timestamp = reader.string();
-		} else if (reader.match("{meta{flags[*") && reader.isvalue()) {
+		} else if (reader.match("{meta{flags[*") && reader.is_value()) {
 			parsed.meta.flags += var(reader);
 		} else if (reader.match("{config{version")) {
 			parsed.config.version = reader.string();
@@ -177,7 +177,7 @@ void perform()
 		} else if (reader.match("{config{features{experimental{parameters{gamma{enabled")) {
 			parsed.config.features.experimental.parameters.gamma.enabled = reader.istrue();
 		} else if (reader.match("{config{features{experimental{parameters{gamma{notes[**")) {
-			if (reader.isvalue()) {
+			if (reader.is_value()) {
 				parsed.config.features.experimental.parameters.gamma.notes.push_back(reader.string());
 			} else if (reader.is_start_object()) {
 				reader.nest();
@@ -187,7 +187,7 @@ void perform()
 					}
 				} while (reader.next());
 			}
-		} else if (reader.match("{config{features{deprecated[*") && reader.isvalue()) {
+		} else if (reader.match("{config{features{deprecated[*") && reader.is_value()) {
 			parsed.config.features.deprecated.features += var(reader);
 		} else if (reader.match("{data[*")) {
 			ParsedData::Data data;
@@ -200,7 +200,7 @@ void perform()
 				} else if (reader.match("{data[{user{roles[*")) {
 					reader.nest();
 					do {
-						if (reader.isvalue()) {
+						if (reader.is_value()) {
 							data.user.roles.push_back(var(reader));
 						} else if (reader.is_start_object()) {
 							reader.nest();
@@ -275,7 +275,7 @@ void perform()
 		} else if (reader.match("{misc{types{array[*")) {
 			reader.nest();
 			do {
-				if (reader.isvalue()) {
+				if (reader.is_value()) {
 					arr(parsed.misc.types.array).push_back(reader.number());
 				}
 			} while (reader.next());
@@ -287,7 +287,7 @@ void perform()
 
 int main()
 {
-	int n = 100000;
+	int n = 10000;
 	printf("Parsing JSON %d times...\n", n);
 
 	ElapsedTimer timer;
