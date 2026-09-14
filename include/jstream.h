@@ -19,7 +19,7 @@
 
 namespace jstream {
 
-static inline std::vector<char> encode_json_string(std::string_view const &in)
+static inline std::vector<char> encode_json_string(std::string_view in)
 {
 	std::vector<char> ret;
 	char const *ptr = in.data();
@@ -220,144 +220,6 @@ public:
 		return value;
 	}
 
-#if 0
-	static std::string format_double(double val, bool allow_nan)
-	{
-		int precision = 15;
-		bool trim_zeros = true;
-		bool plus = false;
-
-		if (std::isnan(val)) {
-			if (allow_nan) {
-				return "NaN";
-			}
-			return {};
-		}
-		if (std::isinf(val)) {
-			if (allow_nan) {
-				bool sign = std::signbit(val);
-				if (sign) {
-					return "-Infinity";
-				} else {
-					return "Infinity";
-				}
-			}
-			return {};
-		}
-
-		char *ptr, *end;
-
-		char *dot = nullptr;
-
-		bool sign = val < 0;
-		if (sign) {
-			val = -val;
-		}
-
-		double intval = floor(val);
-		val -= intval;
-
-		int intlen = 0;
-		if (intval == 0) {
-			ptr = end = (char *)alloca(precision + 10) + 5;
-		} else {
-			double t = intval;
-			do {
-				t = floor(t / 10);
-				intlen++;
-			} while (t != 0);
-			ptr = end = (char *)alloca(intlen + precision + 10) + intlen + 5;
-		}
-
-		if (precision > 0) {
-			dot = end;
-			*end++ = '.';
-			double v = val;
-			int e = 0;
-			while (v > 0 && v < 1) {
-				v *= 10;
-				e++;
-			}
-			while (v >= 1) {
-				v /= 10;
-				e--;
-			}
-			double add = 0.5;
-			for (int i = 0; i < precision - e; i++) {
-				add /= 10;
-			}
-			v += add;
-			double t = floor(v);
-			intval += t;
-			v -= t;
-			int i = 0;
-			int n = intlen;
-			int r = std::min(e, precision);
-			while (i < r) {
-				*end++ = '0';
-				if (n != 0) {
-					n++;
-				}
-				i++;
-			}
-			while (i < precision) {
-				if (n < 16) {
-					v *= 10;
-					double m = floor(v);
-					v -= m;
-					*end++ = (char)m + '0';
-				} else {
-					*end++ = '0';
-				}
-				n++;
-				i++;
-			}
-		} else {
-			intval += floor(val + 0.5);
-		}
-
-		intlen = 0;
-		double t = intval;
-		do {
-			t = floor(t / 10);
-			intlen++;
-		} while (t != 0);
-
-		if (intval == 0) {
-			*--ptr = '0';
-		} else {
-			double t = intval;
-			for (int i = 0; i < intlen; i++) {
-				t /= 10;
-				double u = floor(t);
-				*--ptr = (char)((t - u) * 10 + 0.49) + '0';
-				t = u;
-			}
-		}
-
-		if (sign) {
-			*--ptr = '-';
-		} else if (plus) {
-			*--ptr = '+';
-		}
-
-		if (trim_zeros && dot) {
-			while (dot < end) {
-				char c = end[-1];
-				if (c == '.') {
-					end--;
-					break;
-				}
-				if (c != '0') {
-					break;
-				}
-				end--;
-			}
-		}
-
-		return std::string(ptr, end - ptr);
-	}
-#endif
 	static std::string format_double(double val, bool allow_nan)
 	{
 		if (std::isnan(val)) {
@@ -724,7 +586,7 @@ private:
 		d.ptr = d.begin;
 	}
 
-	void parse(std::string_view const &sv)
+	void parse(std::string_view sv)
 	{
 		parse(sv.data(), sv.data() + sv.size());
 	}
@@ -925,7 +787,7 @@ private:
 		d->ptr = nullptr;
 	}
 public:
-	Reader(std::string_view const &sv)
+	Reader(std::string_view sv)
 	{
 		parse(sv);
 	}
@@ -985,17 +847,16 @@ public:
 	{
 		d.hold = true;
 	}
-	void nest(std::function<void ()> callback_fn = {})
+	void nest()
 	{
-		if (callback_fn) {
-			nest({});
-			do {
-				callback_fn();
-			} while (next());
-			return;
-		}
-
 		d.depth_stack.push_back(depth());
+	}
+	void nest(std::function<void ()> callback_fn)
+	{
+		nest();
+		do {
+			callback_fn();
+		} while (next());
 	}
 	bool next()
 	{
@@ -1136,11 +997,21 @@ public:
 		return state() == String;
 	}
 
+	bool isboolean() const
+	{
+		return istrue() || isfalse();
+	}
+	
 	double number() const
 	{
 		return d.number;
 	}
 
+	bool boolean() const
+	{
+		return istrue();
+	}
+	
 	bool isarray() const
 	{
 		return d.is_array;
@@ -1317,7 +1188,7 @@ private:
 		return true;
 	}
 
-	void print_string(std::string_view const &s)
+	void print_string(std::string_view s)
 	{
 		std::vector<char> buf = encode_json_string(s);
 
@@ -1494,7 +1365,7 @@ public:
 		number({}, v);
 	}
 
-	void string(std::string const &name, std::string_view const &s)
+	void string(std::string const &name, std::string_view s)
 	{
 		print_value(name, [&](){
 			print_string(s);

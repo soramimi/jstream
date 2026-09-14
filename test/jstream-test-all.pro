@@ -21,3 +21,6 @@ SOURCES += \
     test3.cpp \
     test4.cpp \
     testmain.cpp
+
+DISTFILES += \
+	../README.md
