@@ -65,26 +65,54 @@ TEST(Json, Json2)
 			Variant zip;
 		} address;
 	} parsed;
-
-	jstream::Reader reader(json);
-	while (reader.next()) {
-		if (reader.match("{name")) {
-			parsed.name = reader.string();
-		} else if (reader.match("{age")) {
-			parsed.age = reader.number();
-		} else if (reader.match("{city")) {
-			parsed.city = reader.string();
-		} else if (reader.match("{address{street")) {
-			parsed.address.street = reader.string();
-		} else if (reader.match("{address{zip")) {
-			parsed.address.zip = reader.string();
+	
+	{
+		jstream::Reader reader(json);
+		while (reader.next()) {
+			if (reader.match("{name")) {
+				parsed.name = reader.string();
+			} else if (reader.match("{age")) {
+				parsed.age = reader.number();
+			} else if (reader.match("{city")) {
+				parsed.city = reader.string();
+			} else if (reader.match("{address{street")) {
+				parsed.address.street = reader.string();
+			} else if (reader.match("{address{zip")) {
+				parsed.address.zip = reader.string();
+			}
 		}
+		EXPECT_TRUE(reader.has_error()); // error due to trailing comma
+		EXPECT_EQ(get<std::string>(parsed.name), "John");
+		EXPECT_EQ(get<double>(parsed.age), 30);
+		EXPECT_EQ(get<std::string>(parsed.city), "New York");
+		EXPECT_EQ(get<std::string>(parsed.address.street), "123 Main St");
+		EXPECT_EQ(get<std::string>(parsed.address.zip), "10001");
+		
 	}
-	EXPECT_EQ(get<std::string>(parsed.name), "John");
-	EXPECT_EQ(get<double>(parsed.age), 30);
-	EXPECT_EQ(get<std::string>(parsed.city), "New York");
-	EXPECT_EQ(get<std::string>(parsed.address.street), "123 Main St");
-	EXPECT_EQ(get<std::string>(parsed.address.zip), "10001");
+	{
+		jstream::Reader reader(json);
+		reader.allow_ambiguous_comma(true); // allow trailing comma
+		while (reader.next()) {
+			if (reader.match("{name")) {
+				parsed.name = reader.string();
+			} else if (reader.match("{age")) {
+				parsed.age = reader.number();
+			} else if (reader.match("{city")) {
+				parsed.city = reader.string();
+			} else if (reader.match("{address{street")) {
+				parsed.address.street = reader.string();
+			} else if (reader.match("{address{zip")) {
+				parsed.address.zip = reader.string();
+			}
+		}
+		EXPECT_FALSE(reader.has_error());
+		EXPECT_EQ(get<std::string>(parsed.name), "John");
+		EXPECT_EQ(get<double>(parsed.age), 30);
+		EXPECT_EQ(get<std::string>(parsed.city), "New York");
+		EXPECT_EQ(get<std::string>(parsed.address.street), "123 Main St");
+		EXPECT_EQ(get<std::string>(parsed.address.zip), "10001");
+		
+	}
 }
 
 TEST(Json, Json3)
@@ -266,17 +294,16 @@ TEST(Json, Json6)
 			if (r.is_constant()) {
 				v.push_back(r.string());
 			} else if (r.is_start_object()) {
-				r.nest();
-				do {
+				r.nest([&](){
 					if (r.match("{unexpected{values[{nesting{level")) {
 						v.push_back(r.string());
 					}
-				} while (r.next());
+				});
 			}
 		}
 	}
 
-	EXPECT_EQ(v.size(), 3);
+	ASSERT_EQ(v.size(), 3);
 	EXPECT_EQ(v[0], "deep");
 	EXPECT_EQ(v[1], "6");
 	EXPECT_EQ(v[2], "done");
@@ -437,12 +464,10 @@ TEST(Json, Json8)
 	jstream::Reader r(json);
 	while (r.next()) {
 		if (r.is_start_array()) {
-			r.nest();
-			do {
+			r.nest([&](){
 				if (r.is_start_object()) {
-					r.nest();
 					Person person;
-					do {
+					r.nest([&](){
 						if (r.match("[{name")) {
 							person.name = r.string();
 						} else if (r.match("[{age")) {
@@ -450,10 +475,10 @@ TEST(Json, Json8)
 						} else if (r.match("[{address")) {
 							person.address = r.string();
 						}
-					} while (r.next());
+					});
 					persons1.push_back(person);
 				}
-			} while (r.next());
+			});
 		}
 	}
 
@@ -492,15 +517,13 @@ TEST(Json, Json8)
 
 	// parse json2 to persons2
 	std::vector<Person> persons2;
-	jstream::Reader r2(json);
+	jstream::Reader r2(json2);
 	while (r2.next()) {
 		if (r2.is_start_array()) {
-			r2.nest();
-			do {
+			r2.nest([&](){
 				if (r2.is_start_object()) {
-					r2.nest();
 					Person person;
-					do {
+					r2.nest([&](){
 						if (r2.match("[{name")) {
 							person.name = r2.string();
 						} else if (r2.match("[{age")) {
@@ -508,14 +531,56 @@ TEST(Json, Json8)
 						} else if (r2.match("[{address")) {
 							person.address = r2.string();
 						}
-					} while (r2.next());
+					});
 					persons2.push_back(person);
 				}
-			} while (r2.next());
+			});
 		}
 	}
 
 	Check(persons2);
+}
+
+TEST(Json, Json9)
+{
+	char const *json = R"---(
+{
+	"array": {
+		{
+			"value": 123
+		}
+	}
+}
+)---";
+	
+	{
+		std::vector<double> v;
+		
+		jstream::Reader r(json);
+		while (r.next()) {
+			if (r.match("{array{{*")) {
+				if (r.is_constant()) {
+					v.push_back(r.number());
+				}
+			}
+		}
+		ASSERT_EQ(v.size(), 1);
+		EXPECT_EQ(v[0], 123);
+	}
+	
+	{
+		std::vector<double> v;
+		
+		jstream::Reader r(json);
+		while (r.next()) {
+			if (r.match("{array{*")) { // this will not match the nested object, so v should be empty
+				if (r.is_constant()) {
+					v.push_back(r.number());
+				}
+			}
+		}
+		ASSERT_EQ(v.size(), 0);
+	}
 }
 
 TEST(Json, Array1)
@@ -554,12 +619,11 @@ TEST(Json, Array2)
 	jstream::Reader r(json);
 	while (r.next()) {
 		if (r.match_start_array("{a[**")) {
-			r.nest();
-			do {
+			r.nest([&](){
 				if (r.match("{a[[*") && r.isnumber()) {
 					v.push_back(r.number());
 				}
-			} while (r.next());
+			});
 		}
 	}
 	ASSERT_EQ(v.size(), 4);
@@ -590,14 +654,13 @@ TEST(Json, Array3)
 	while (r.next()) {
 		if (r.match_start_object("[**")) {
 			Item item;
-			r.nest();
-			do {
+			r.nest([&](){
 				if (r.match("[{name")) {
 					item.name = r.string();
 				} else if (r.match("[{price")) {
 					item.price = r.number();
 				}
-			} while (r.next());
+			});
 			items.push_back(item);
 		}
 	}
@@ -643,8 +706,7 @@ TEST(Json, Array4)
 	while (r.next()) {
 		if (r.match("{book[*")) {
 			Book book;
-			r.nest();
-			do {
+			r.nest([&](){
 				if (r.match("{book[{id")) {
 					book.id = r.string();
 				} else if (r.match("{book[{language")) {
@@ -654,7 +716,7 @@ TEST(Json, Array4)
 				} else if (r.match("{book[{author")) {
 					book.author = r.string();
 				}
-			} while (r.next());
+			});
 			books.push_back(book);
 		}
 	}
@@ -699,6 +761,107 @@ TEST(Json, Array5)
 	EXPECT_EQ(v[3], 78);
 }
 
+TEST(Json, Array6)
+{
+	char const *json = R"---(
+{
+	"array": [
+		[
+			"123"
+		],
+		[
+			"456"
+		],
+		[
+			"789"
+		],
+		999,
+		true,
+		false,
+		"abc",
+	]
+}
+)---";
+	
+	std::vector<std::string> v;
+	
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{array[*")) {
+			if (r.is_start_array()) {
+				r.nest([&](){
+					if (r.match("{array[[")) {
+						if (r.is_constant()) {
+							v.push_back(r.string());
+						}
+					}
+				});
+			} else if (r.is_constant()) {
+				v.push_back(r.string());
+			}
+		}
+	}
+	ASSERT_EQ(v.size(), 7);
+	EXPECT_EQ(v[0], "123");
+	EXPECT_EQ(v[1], "456");
+	EXPECT_EQ(v[2], "789");
+	EXPECT_EQ(v[3], "999");
+	EXPECT_EQ(v[4], "true");
+	EXPECT_EQ(v[5], "false");
+	EXPECT_EQ(v[6], "abc");
+}
+
+TEST(Json, Array7)
+{
+	char const *json = R"---(
+{
+	"array": [
+		[
+			"123",
+		],
+		[
+			"456",
+		],
+		[
+			"789",
+		],
+		999,
+		true,
+		false,
+		"abc",
+	]
+}
+)---";
+	
+	std::vector<std::string> v;
+	
+	jstream::Reader r(json);
+	r.allow_ambiguous_comma(true);
+	while (r.next()) {
+		if (r.match("{array[*")) {
+			if (r.is_start_array()) {
+				r.nest([&](){
+					if (r.match("{array[[")) {
+						if (r.is_constant()) {
+							v.push_back(r.string());
+						}
+					}
+				});
+			} else if (r.is_constant()) {
+				v.push_back(r.string());
+			}
+		}
+	}
+	ASSERT_EQ(v.size(), 7);
+	EXPECT_EQ(v[0], "123");
+	EXPECT_EQ(v[1], "456");
+	EXPECT_EQ(v[2], "789");
+	EXPECT_EQ(v[3], "999");
+	EXPECT_EQ(v[4], "true");
+	EXPECT_EQ(v[5], "false");
+	EXPECT_EQ(v[6], "abc");
+}
+
 TEST(Json, Writer1)
 {
 	std::string json;
@@ -740,3 +903,4 @@ TEST(Json, Writer1)
 	EXPECT_EQ(rec.age, 30);
 	EXPECT_EQ(rec.city, "東京");
 }
+

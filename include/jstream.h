@@ -19,7 +19,21 @@
 
 namespace jstream {
 
-static inline std::vector<char> encode_json_string(std::string_view in)
+static constexpr char hex_table[] = "0123456789ABCDEF";
+
+inline void hex_u8(uint8_t v, char *p)
+{
+	p[0] = hex_table[(v >> 4) & 0x0f];
+	p[1] = hex_table[v & 0x0f];
+}
+
+inline void hex_u16(uint16_t v, char *p)
+{
+	hex_u8(v >> 8, p);
+	hex_u8(v & 0xff, p + 2);
+}
+
+static std::vector<char> encode_json_string(std::string_view in)
 {
 	std::vector<char> ret;
 	char const *ptr = in.data();
@@ -73,10 +87,19 @@ static inline std::vector<char> encode_json_string(std::string_view in)
 						if (unicode >= 0x10000 && unicode < 0x110000) {
 							uint16_t h = (unicode - 0x10000) / 0x400 + 0xd800;
 							uint16_t l = (unicode - 0x10000) % 0x400 + 0xdc00;
-							sprintf(tmp, "\\u%04X\\u%04X", h, l);
+							// sprintf(tmp, "\\u%04X\\u%04X", h, l);
+							tmp[0] = '\\';
+							tmp[1] = 'u';
+							hex_u16(h, tmp + 2);
+							tmp[6] = '\\';
+							tmp[7] = 'u';
+							hex_u16(l, tmp + 8);
 							ret.insert(ret.end(), tmp, tmp + 12);
 						} else {
-							sprintf(tmp, "\\u%04X", unicode);
+							// sprintf(tmp, "\\u%04X", unicode);
+							tmp[0] = '\\';
+							tmp[1] = 'u';
+							hex_u16(unicode, tmp + 2);
 							ret.insert(ret.end(), tmp, tmp + 6);
 						}
 					}
@@ -701,7 +724,7 @@ private:
 				case StartArray:
 				case Key:
 				case Comma:
-					// thru
+					// nop
 					break;
 				default:
 					if (d.allow_ambiguous_comma) {
@@ -976,7 +999,17 @@ public:
 	{
 		return symbol() == Null;
 	}
-
+	
+	bool isnumber() const
+	{
+		return state() == Number;
+	}
+	
+	bool isstring() const
+	{
+		return state() == String;
+	}
+	
 	bool isfalse() const
 	{
 		return symbol() == False;
@@ -985,16 +1018,6 @@ public:
 	bool istrue() const
 	{
 		return symbol() == True;
-	}
-
-	bool isnumber() const
-	{
-		return state() == Number;
-	}
-
-	bool isstring() const
-	{
-		return state() == String;
 	}
 
 	bool isboolean() const
@@ -1146,9 +1169,9 @@ protected:
 		print(p, (int)strlen(p));
 	}
 
-	void print(std::string const &s)
+	void print(std::string_view s)
 	{
-		print(s.c_str(), (int)s.size());
+		print(s.data(), (int)s.size());
 	}
 private:
 	std::vector<int> stack;
@@ -1199,10 +1222,10 @@ private:
 		print('\"');
 	}
 	
-	void print_raw(std::string const &s)
+	void print_raw(std::string_view s)
 	{
 		if (!s.empty()) {
-			print(s.c_str(), (int)s.size());
+			print(s);
 		}
 	}
 	
@@ -1415,7 +1438,7 @@ public:
 		return string_out;
 	}
 	
-	void raw(std::string const &name, std::string const &s)
+	void raw(std::string const &name, std::string_view s)
 	{
 		print_value(name, [&](){
 			print_raw(s);

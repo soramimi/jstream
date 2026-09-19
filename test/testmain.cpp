@@ -18,37 +18,34 @@ void debug1()
 {
 	char const *json = R"---(
 {
-	"name": "John",
-	"age": 30,
-	"city": "New York"
+	"array": {
+		{
+			"value": 123
+		}
+	}
 }
 )---";
-	std::string name;
-	int age = 0;
-	std::string city;
-	jstream::Reader reader(json);
-	while (reader.next()) {
-		if (reader.match("{name")) {
-			name = reader.string();
-			fprintf(stderr, "name=%s\n", name.c_str());
-		} else if (reader.match("{age")) {
-			age = reader.number();
-			fprintf(stderr, "age=%d\n", age);
-		} else if (reader.match("{city")) {
-			city = reader.string();
-			fprintf(stderr, "city=%s\n", city.c_str());
+		
+	std::vector<std::string> v;
+	
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{array{{*")) {
+			if (r.is_constant()) {
+				v.push_back(r.string());
+			}
 		}
-	}	
+	}
 }
 
 int main(int argc, char **argv)
 {
-	::testing::InitGoogleTest(&argc, argv);
-	int ret = RUN_ALL_TESTS();
-
-	if (0) {
+	if (1) {
 		debug1();
 	}
+	
+	::testing::InitGoogleTest(&argc, argv);
+	int ret = RUN_ALL_TESTS();
 
 	return ret;
 }
