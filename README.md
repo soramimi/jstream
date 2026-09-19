@@ -216,9 +216,10 @@ make
 ./myapp
 ```
 
-## C# Port
+## Ports
 
-A C# port of this library is available in the `jstream-cs/` directory. See `README_CSharp.md` for details.
+- **C#**: `jstream-cs/` directory. See `README_CSharp.md`.
+- **Go**: `jstream-go/` directory. See `README_Go.md` (also `jstream-go/README.md`).
 
 ## License
 

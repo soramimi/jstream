@@ -8,8 +8,9 @@ jstream is a lightweight, header-only JSON parser/generator library. It has two 
 
 - **C++ version** (`include/jstream.h`): the primary implementation, written in C++17.
 - **C# version** (`jstream-cs/`): a port that follows the C++ API and behavior where idiomatically appropriate.
+- **Go version** (`jstream-go/`): a port that follows the C++ API and behavior where idiomatically appropriate.
 
-When modifying functionality, the C++ version is the source of truth. The C# port should be kept synchronized unless the change is C++-specific.
+When modifying functionality, the C++ version is the source of truth. The C# and Go ports should be kept synchronized unless the change is C++-specific.
 
 ## Directory Structure
 
@@ -32,8 +33,22 @@ When modifying functionality, the C++ version is the source of truth. The C# por
 │   ├── JStream.Tests/     # xUnit tests
 │   ├── JStream.Examples/  # example application
 │   └── JStream.Benchmark/ # benchmark application
+├── jstream-go/            # Go port
+│   ├── go.mod
+│   ├── Makefile
+│   ├── reader.go
+│   ├── writer.go
+│   ├── variant.go
+│   ├── state.go
+│   ├── helper.go
+│   ├── reader_test.go
+│   ├── writer_test.go
+│   ├── example/
+│   ├── benchmark/
+│   └── README.md
 ├── README.md              # C++ documentation
 ├── README_CSharp.md       # C# documentation
+├── README_Go.md           # Go documentation
 └── AGENTS.md              # this file
 ```
 
@@ -64,6 +79,19 @@ make run    # run example
 make clean  # clean artifacts
 ```
 
+### Go Version
+
+Requires Go 1.23 or later.
+
+```bash
+cd jstream-go
+make        # build and test
+make test   # run tests
+make example
+make benchmark
+make clean
+```
+
 ## Coding Conventions
 
 - **C++**: follow the existing style in `include/jstream.h` (tabs for indentation, snake_case public API).
@@ -79,7 +107,8 @@ make clean  # clean artifacts
 - C++ `Writer` can output via callback or collect output internally (since the last sync).
 - C# `Reader` takes a managed `string`. It does not require lifetime management.
 - C# `Variant` is a reference type (`class`), unlike C++ `std::variant`. `AsObject()`/`AsArray()` mutate the `Variant` instance when the current type does not match.
-- `Reader.IsValue` in both languages means `IsConstant || IsStructure`. Use `IsConstant` when only primitive/null values are intended.
+- Go `Variant` is a value type (`struct`) wrapping `any`. Use pointer methods (`*Variant`) such as `AsObject()`/`AsArray()` when mutating the variant.
+- `Reader.IsValue` in all languages means `IsConstant || IsStructure`. Use `IsConstant` when only primitive/null values are intended.
 
 ## Synchronization Policy
 
@@ -89,9 +118,11 @@ When adding or changing features:
 2. Update C++ tests in `test/` as needed.
 3. Port the change to the C# version (`jstream-cs/JStream/`).
 4. Update C# tests and examples to match.
-5. Update `README.md` and `README_CSharp.md`.
+5. Port the change to the Go version (`jstream-go/`).
+6. Update Go tests and examples to match.
+7. Update `README.md`, `README_CSharp.md`, `README_Go.md`, and `jstream-go/README.md`.
 
-Keep API names aligned by converting C++ snake_case to C# PascalCase (e.g. `allow_comment` → `AllowComment`, `is_value` → `IsValue`).
+Keep API names aligned by converting C++ snake_case to C# PascalCase (e.g. `allow_comment` → `AllowComment`, `is_value` → `IsValue`) and to Go PascalCase (e.g. `allow_comment` → `AllowComment`, `is_value` → `IsValue`).
 
 ## Common Pitfalls
 
