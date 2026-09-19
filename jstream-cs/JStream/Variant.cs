@@ -5,7 +5,7 @@ using System.Collections.Generic;
 namespace JStream;
 
 public class Variant {
-	private readonly object? _value;
+	private object? _value;
 
 	public Variant() => _value = null;
 	public Variant(bool value) => _value = value;
@@ -23,6 +23,26 @@ public class Variant {
 	public bool IsArray => _value is JArray;
 	public bool IsNaN => _value is double d && double.IsNaN(d);
 	public bool IsInfinite => _value is double d && double.IsInfinity(d);
+
+	public JObject AsObject()
+	{
+		if (_value is JObject obj)
+			return obj;
+
+		obj = new JObject();
+		_value = obj;
+		return obj;
+	}
+
+	public JArray AsArray()
+	{
+		if (_value is JArray array)
+			return array;
+
+		array = new JArray();
+		_value = array;
+		return array;
+	}
 
 	public T Get<T>()
 	{
@@ -135,24 +155,3 @@ public class JArray : IList<Variant> {
 	}
 }
 
-public static class VariantExtensions {
-	public static JObject AsObject(this Variant variant)
-	{
-		if (variant.IsObject)
-			return variant.Get<JObject>();
-
-		var obj = new JObject();
-		variant = obj;
-		return obj;
-	}
-
-	public static JArray AsArray(this Variant variant)
-	{
-		if (variant.IsArray)
-			return variant.Get<JArray>();
-
-		var array = new JArray();
-		variant = array;
-		return array;
-	}
-}

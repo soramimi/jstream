@@ -1,9 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace JStream;
+
+public class Error {
+	public string Message { get; }
+	public int Offset { get; }
+	public int Line { get; }
+	public int Column { get; }
+
+	public Error(string message, int offset, int line, int column)
+	{
+		Message = message;
+		Offset = offset;
+		Line = line;
+		Column = column;
+	}
+
+	public override string ToString() => Message;
+}
 
 public class Reader {
 	private readonly string _json;
@@ -17,13 +35,14 @@ public class Reader {
 	private bool _isArray;
 	private bool _hold;
 	private StateItem? _lastState;
-	private readonly List<string> _errors = new();
+	private readonly List<Error> _errors = new();
 
 	public bool AllowComment { get; set; }
 	public bool AllowAmbiguousComma { get; set; }
 	public bool AllowUnquotedKey { get; set; }
 	public bool AllowHexadecimal { get; set; }
 	public bool AllowSpecialConstant { get; set; }
+	public bool AllowKeyInArray { get; set; }
 
 	private struct StateItem {
 		public StateType Type { get; set; }
@@ -44,27 +63,31 @@ public class Reader {
 
 	public StateType State => _states.Count > 0 ? _states[^1].Type : StateType.None;
 	public bool HasError => _errors.Count > 0;
-	public IReadOnlyList<string> Errors => _errors;
+	public IReadOnlyList<Error> Errors => _errors;
 	public bool IsStartObject => State == StateType.StartObject;
 	public bool IsEndObject => State == StateType.EndObject;
 	public bool IsStartArray => State == StateType.StartArray;
 	public bool IsEndArray => State == StateType.EndArray;
-	public bool IsObject => IsObjectOrArray();
-	public bool IsValue => IsValueState();
+	public bool IsConstant => IsConstantState();
+	public bool IsStructure => IsStructureState();
+	public bool IsValue => IsConstant || IsStructure;
 	public string Key => _key;
 	public string StringValue => _stringValue;
 	public StateType Symbol => GetSymbol();
 	public bool IsNull => Symbol == StateType.Null;
 	public bool IsFalse => Symbol == StateType.False;
 	public bool IsTrue => Symbol == StateType.True;
+	public bool IsBoolean => IsFalse || IsTrue;
 	public bool IsNumber => State == StateType.Number;
 	public bool IsString => State == StateType.String;
 	public double Number => _numberValue;
+	public bool BooleanValue => IsTrue;
 	public bool IsArray => _isArray;
 	public int Depth => _depth.Count;
 	public string Path => GetPath();
+	public int Tell => _position;
 
-	private bool IsObjectOrArray()
+	private bool IsStructureState()
 	{
 		return State switch {
 			StateType.StartObject or StateType.StartArray => true,
@@ -74,7 +97,7 @@ public class Reader {
 		};
 	}
 
-	private bool IsValueState()
+	private bool IsConstantState()
 	{
 		return State is StateType.String or StateType.Number or StateType.Null or StateType.False or StateType.True;
 	}
@@ -113,6 +136,31 @@ public class Reader {
 	public void Nest()
 	{
 		_depthStack.Add(Depth);
+	}
+
+	public void Nest(Action callback)
+	{
+		Nest();
+		do {
+			callback();
+		} while (Next());
+	}
+
+	public string Extract()
+	{
+		if (_lastState != null) {
+			int pos = _lastState.Value.Position;
+			return _json.Substring(pos, _position - pos);
+		}
+		return string.Empty;
+	}
+
+	public ReadOnlySpan<char> Extract(int begin, int end)
+	{
+		if (begin >= 0 && end <= _json.Length && begin <= end) {
+			return _json.AsSpan(begin, end - begin);
+		}
+		return ReadOnlySpan<char>.Empty;
 	}
 
 	public bool Next()
@@ -281,7 +329,7 @@ public class Reader {
 
 		SkipWhitespaceAndComments();
 
-		if (IsObject || IsValue)
+		if (IsStructure || IsValue)
 			PopState();
 
 		PushState(new StateItem(StateType.Comma));
@@ -331,11 +379,6 @@ public class Reader {
 		_stringValue = result.Value;
 		_position = result.EndPosition;
 
-		if (IsArray) {
-			PushState(new StateItem(StateType.String));
-			return true;
-		}
-
 		if (State == StateType.Key) {
 			PushState(new StateItem(StateType.String));
 			return true;
@@ -344,13 +387,20 @@ public class Reader {
 		SkipWhitespaceAndComments();
 
 		if (_position < _json.Length && _json[_position] == ':') {
+			if (IsArray) {
+				if (!AllowKeyInArray) {
+					PushError("Unexpected key in array");
+					return false;
+				}
+			}
 			_position++;
 			_key = _stringValue;
 			PushState(new StateItem(StateType.Key));
 			return true;
 		}
 
-		return false;
+		PushState(new StateItem(StateType.String));
+		return true;
 	}
 
 	private bool HandleNumber()
@@ -473,18 +523,37 @@ public class Reader {
 					sb.Append(escapedChar);
 					break;
 				case 'u':
-					if (_position + 4 < _json.Length) {
-						string hexString = _json.Substring(_position + 1, 4);
-						if (int.TryParse(hexString, System.Globalization.NumberStyles.HexNumber, null, out int unicode)) {
-							sb.Append((char)unicode);
-							_position += 4;
+				{
+					if (_position + 4 > _json.Length)
+						return (false, string.Empty, start);
+
+					string hexString = _json.Substring(_position + 1, 4);
+					if (!int.TryParse(hexString, NumberStyles.HexNumber, null, out int codeUnit))
+						return (false, string.Empty, start);
+
+					_position += 4;
+
+					if (codeUnit >= 0xD800 && codeUnit < 0xDC00) {
+						if (_position + 5 < _json.Length && _json[_position] == '\\' && _json[_position + 1] == 'u') {
+							string lowHex = _json.Substring(_position + 2, 4);
+							if (int.TryParse(lowHex, NumberStyles.HexNumber, null, out int lowSurrogate)
+								&& lowSurrogate >= 0xDC00 && lowSurrogate < 0xE000) {
+								_position += 6;
+								int unicode = ((codeUnit - 0xD800) << 10) + (lowSurrogate - 0xDC00) + 0x10000;
+								sb.Append(char.ConvertFromUtf32(unicode));
+							} else {
+								return (false, string.Empty, start);
+							}
 						} else {
-							sb.Append(escapedChar);
+							return (false, string.Empty, start);
 						}
+					} else if (codeUnit >= 0xDC00 && codeUnit < 0xE000) {
+						return (false, string.Empty, start);
 					} else {
-						sb.Append(escapedChar);
+						sb.Append(char.ConvertFromUtf32(codeUnit));
 					}
 					break;
+				}
 				default:
 					sb.Append(escapedChar);
 					break;
@@ -570,69 +639,89 @@ public class Reader {
 		return true;
 	}
 
-	private void PushError(string error)
+	private void PushError(string message)
 	{
 		_states.Clear();
-		_errors.Add(error);
+		int offset = _position;
+		int line = 1;
+		int column = 1;
+		for (int i = 0; i < _position && i < _json.Length; i++) {
+			if (_json[i] == '\n') {
+				line++;
+				column = 1;
+			} else if (_json[i] != '\r') {
+				column++;
+			}
+		}
+		_errors.Add(new Error(message, offset, line, column));
 	}
 
-	public bool Match(string path)
+	public bool Match(string path, bool matchEndStructure = false)
 	{
-		if (!IsObject && !IsArray && !IsValue)
+		if (!IsValue)
 			return false;
 
-		// C++版に基づく実装
 		int pathPos = 0;
 
+		char Path(int i) => i < path.Length ? path[i] : '\0';
+
 		for (int i = 0; i < _depth.Count; i++) {
-			string depthItem = _depth[i];
-			if (string.IsNullOrEmpty(depthItem))
-				break;
+			string element = _depth[i];
+			if (string.IsNullOrEmpty(element))
+				return false;
 
-			// ** ワイルドカード - 任意の深さまでマッチ
-			if (pathPos < path.Length - 1 && path[pathPos] == '*' && path[pathPos + 1] == '*' &&
-				(pathPos + 2 >= path.Length || path[pathPos + 2] == '\0')) {
-				return true;
-			}
+			if (Path(pathPos) == '*') {
+				if (Path(pathPos + 1) == '*') {
+					if (Path(pathPos + 2) == '\0')
+						return true;
+					return false; // "**" must be at the end of path
+				}
 
-			// * ワイルドカード処理
-			if (pathPos < path.Length && path[pathPos] == '*' && depthItem.EndsWith('{')) {
-				if (pathPos + 1 >= path.Length) {
-					return (State == StateType.StartObject && i + 1 == _depth.Count);
-				} else if (pathPos + 1 < path.Length && path[pathPos + 1] == '{') {
-					pathPos += 2;
-					continue;
+				char c = element[^1];
+				if (c == '{' || c == '[') {
+					if (Path(pathPos + 1) == c) {
+						pathPos += 2;
+						continue;
+					}
+					if (Path(pathPos + 1) == '\0') {
+						if (i + 1 == _depth.Count) {
+							if (c == '{' && State == StateType.StartObject)
+								return true;
+							if (c == '[' && State == StateType.StartArray)
+								return true;
+						}
+						return false;
+					}
 				}
 			}
 
-			// 通常のパスマッチング
-			if (pathPos + depthItem.Length <= path.Length &&
-				path.Substring(pathPos, depthItem.Length) == depthItem) {
-				pathPos += depthItem.Length;
-			} else {
+			if (pathPos + element.Length > path.Length)
+				return false;
+			if (path.Substring(pathPos, element.Length) != element)
+				return false;
+			pathPos += element.Length;
+		}
+
+		if (Path(pathPos) == '*') {
+			if (Path(pathPos + 1) == '*' && Path(pathPos + 2) == '\0')
+				return true;
+			if (Path(pathPos + 1) == '\0') {
+				if (IsConstant)
+					return true;
+				if (matchEndStructure && (State == StateType.EndObject || State == StateType.EndArray))
+					return true;
 				return false;
 			}
 		}
 
-		// 残りのパスの処理
-		if (pathPos < path.Length - 1 && path[pathPos] == '*' && path[pathPos + 1] == '*' &&
-			(pathPos + 2 >= path.Length || path[pathPos + 2] == '\0')) {
-			return true;
-		}
-
-		if (pathPos < path.Length && path[pathPos] == '*') {
-			return (pathPos + 1 >= path.Length && _depth.Count > 0
-				&& (IsValue || State == StateType.EndObject || State == StateType.EndArray));
-		}
-
-		string remainingPath = pathPos < path.Length ? path[pathPos..] : string.Empty;
-		return remainingPath == _key;
+		string remaining = pathPos < path.Length ? path[pathPos..] : string.Empty;
+		return remaining == _key;
 	}
 
 	public bool MatchStartObject(string path) => State == StateType.StartObject && Match(path);
-	public bool MatchEndObject(string path) => State == StateType.EndObject && Match(path);
+	public bool MatchEndObject(string path) => State == StateType.EndObject && Match(path, true);
 	public bool MatchStartArray(string path) => State == StateType.StartArray && Match(path);
-	public bool MatchEndArray(string path) => State == StateType.EndArray && Match(path);
+	public bool MatchEndArray(string path) => State == StateType.EndArray && Match(path, true);
 
 	public Variant GetVariant()
 	{

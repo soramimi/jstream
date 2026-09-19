@@ -55,9 +55,17 @@ internal static class JsonHelper {
 
 		numberString = numberString.Trim();
 
-		if (allowHexadecimal && numberString.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
-			if (long.TryParse(numberString[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out long hexValue))
-				return hexValue;
+		if (allowHexadecimal) {
+			bool isNegative = false;
+			string hexPart = numberString;
+			if (hexPart.StartsWith("-")) {
+				isNegative = true;
+				hexPart = hexPart[1..];
+			}
+			if (hexPart.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) {
+				if (long.TryParse(hexPart[2..], NumberStyles.HexNumber, CultureInfo.InvariantCulture, out long hexValue))
+					return isNegative ? -hexValue : hexValue;
+			}
 		}
 
 		if (allowSpecialConstants) {

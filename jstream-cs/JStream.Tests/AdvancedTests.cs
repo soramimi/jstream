@@ -281,17 +281,15 @@ public class AdvancedTests {
 		var reader = new Reader(json);
 
 		while (reader.Next()) {
-			if (reader.Match("{unexpected{values[*")) {
-				if (reader.IsValue) {
-					values.Add(reader.StringValue);
-				} else if (reader.IsStartObject) {
-					reader.Nest();
-					do {
-						if (reader.Match("{unexpected{values[{nesting{level")) {
-							values.Add(reader.StringValue);
-						}
-					} while (reader.Next());
-				}
+			if (reader.Match("{unexpected{values[*") && reader.IsConstant) {
+				values.Add(reader.StringValue);
+			} else if (reader.MatchStartObject("{unexpected{values[*{")) {
+				reader.Nest();
+				do {
+					if (reader.Match("{unexpected{values[{nesting{level")) {
+						values.Add(reader.StringValue);
+					}
+				} while (reader.Next());
 			}
 		}
 

@@ -5,11 +5,13 @@
 #ifndef JSTREAM_H_
 #define JSTREAM_H_
 
-#include <assert.h>
+#include <cassert>
+#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <string>
@@ -38,78 +40,80 @@ static std::vector<char> encode_json_string(std::string_view in)
 	std::vector<char> ret;
 	char const *ptr = in.data();
 	char const *end = ptr + in.size();
-	ret.reserve(end - ptr + 10);
+	ret.reserve(static_cast<size_t>(end - ptr) + 10);
 	while (ptr < end) {
-		int c = (unsigned char)*ptr;
+		unsigned char c = static_cast<unsigned char>(*ptr);
 		char const *next = ptr + 1;
-		switch (c) {
-		case '\"': ret.push_back('\\'); ret.push_back('\"'); break;
-		case '\\': ret.push_back('\\'); ret.push_back('\\'); break;
-		case '\b': ret.push_back('\\'); ret.push_back('b'); break;
-		case '\f': ret.push_back('\\'); ret.push_back('f'); break;
-		case '\n': ret.push_back('\\'); ret.push_back('n'); break;
-		case '\r': ret.push_back('\\'); ret.push_back('r'); break;
-		case '\t': ret.push_back('\\'); ret.push_back('t'); break;
-		default:
-			if (c >= 0x20 && c < 0x7f) {
-				ret.push_back(c);
+		auto push_escape = [&](char esc) {
+			ret.push_back('\\');
+			ret.push_back(esc);
+		};
+		auto push_u00 = [&](unsigned char v) {
+			char tmp[6];
+			tmp[0] = '\\';
+			tmp[1] = 'u';
+			tmp[2] = '0';
+			tmp[3] = '0';
+			hex_u8(v, tmp + 4);
+			ret.insert(ret.end(), tmp, tmp + 6);
+		};
+		if (c == '\"') {
+			push_escape('\"');
+		} else if (c == '\\') {
+			push_escape('\\');
+		} else if (c == '\b') {
+			push_escape('b');
+		} else if (c == '\f') {
+			push_escape('f');
+		} else if (c == '\n') {
+			push_escape('n');
+		} else if (c == '\r') {
+			push_escape('r');
+		} else if (c == '\t') {
+			push_escape('t');
+		} else if (c < 0x20) {
+			push_u00(c);
+		} else if (c < 0x7f) {
+			ret.push_back(static_cast<char>(c));
+		} else {
+			int utf8len = 0;
+			uint32_t unicode = 0;
+			if ((c & 0xe0) == 0xc0 && next < end) {
+				unsigned char d = static_cast<unsigned char>(*next);
+				if ((d & 0xc0) == 0x80) {
+					unicode = ((c & 0x1f) << 6) | (d & 0x3f);
+					if (unicode >= 0x80) utf8len = 2;
+				}
+			} else if ((c & 0xf0) == 0xe0 && next + 1 < end) {
+				unsigned char d = static_cast<unsigned char>(*next);
+				unsigned char e = static_cast<unsigned char>(next[1]);
+				if ((d & 0xc0) == 0x80 && (e & 0xc0) == 0x80) {
+					unicode = ((c & 0x0f) << 12) | ((d & 0x3f) << 6) | (e & 0x3f);
+					if (unicode >= 0x800 && unicode < 0x10000) utf8len = 3;
+				}
+			} else if ((c & 0xf8) == 0xf0 && next + 2 < end) {
+				unsigned char d = static_cast<unsigned char>(*next);
+				unsigned char e = static_cast<unsigned char>(next[1]);
+				unsigned char f = static_cast<unsigned char>(next[2]);
+				if ((d & 0xc0) == 0x80 && (e & 0xc0) == 0x80 && (f & 0xc0) == 0x80) {
+					unicode = ((c & 0x07) << 18) | ((d & 0x3f) << 12) | ((e & 0x3f) << 6) | (f & 0x3f);
+					if (unicode >= 0x10000 && unicode < 0x110000) utf8len = 4;
+				}
+			}
+			if (utf8len > 0) {
+				next = ptr + utf8len;
+				ret.insert(ret.end(), ptr, next);
 			} else {
-				int utf8len = 0;
-				uint32_t unicode = 0;
-				if ((c & 0xe0) == 0xc0 && next < end) {
-					if ((next[0] & 0xc0) == 0x80) {
-						int d = (unsigned char)next[0];
-						unicode = ((c & 0x1f) << 6) | (d & 0x3f);
-						utf8len = 2;
-					}
-				} else if ((c & 0xf0) == 0xe0 && next + 1 < end) {
-					if ((next[0] & 0xc0) == 0x80 && (next[1] & 0xc0) == 0x80) {
-						int d = (unsigned char)next[0];
-						int e = (unsigned char)next[1];
-						unicode = ((c & 0x0f) << 12) | ((d & 0x3f) << 6) | (e & 0x3f);
-						utf8len = 3;
-					}
-				} else if ((c & 0xf8) == 0xf0 && next + 2 < end) {
-					if ((next[0] & 0xc0) == 0x80 && (next[1] & 0xc0) == 0x80 && (next[2] & 0xc0) == 0x80) {
-						int d = (unsigned char)next[0];
-						int e = (unsigned char)next[1];
-						int f = (unsigned char)next[2];
-						unicode = ((c & 0x0f) << 18) | ((d & 0x3f) << 12) | ((e & 0x3f) << 6) | (f & 0x3f);
-						utf8len = 4;
-					}
-				}
-				if (unicode != 0) {
-					if (1) {
-						next = ptr + utf8len;
-						ret.insert(ret.end(), ptr, next);
-					} else {
-						char tmp[20];
-						if (unicode >= 0x10000 && unicode < 0x110000) {
-							uint16_t h = (unicode - 0x10000) / 0x400 + 0xd800;
-							uint16_t l = (unicode - 0x10000) % 0x400 + 0xdc00;
-							// sprintf(tmp, "\\u%04X\\u%04X", h, l);
-							tmp[0] = '\\';
-							tmp[1] = 'u';
-							hex_u16(h, tmp + 2);
-							tmp[6] = '\\';
-							tmp[7] = 'u';
-							hex_u16(l, tmp + 8);
-							ret.insert(ret.end(), tmp, tmp + 12);
-						} else {
-							// sprintf(tmp, "\\u%04X", unicode);
-							tmp[0] = '\\';
-							tmp[1] = 'u';
-							hex_u16(unicode, tmp + 2);
-							ret.insert(ret.end(), tmp, tmp + 6);
-						}
-					}
-				}
+				// Invalid UTF-8 byte: escape as \u00XX.
+				push_u00(c);
 			}
 		}
 		ptr = next;
 	}
 	return ret;
 }
+
+namespace detail {
 
 class misc {
 private:
@@ -118,7 +122,7 @@ private:
 	 *
 	 * A small lookup table is used for the most common range to avoid
 	 * calling the comparatively expensive `pow()` routine.  Values outside
-	 * the table range fall back to `pow(10.0, exp)`.
+	 * the table range fall back to `pow(10.0, exp)`.
 	 *
 	 * @param exp Decimal exponent (positive or negative).
 	 * @return The value 10^exp as a double.
@@ -165,7 +169,7 @@ public:
 		double value = 0.0;
 
 		// Skip leading white‑space
-		while (std::isspace((unsigned char)*s)) ++s;
+		while (std::isspace(static_cast<unsigned char>(*s))) ++s;
 
 		// Parse optional sign
 		if (*s == '+' || *s == '-') {
@@ -174,7 +178,7 @@ public:
 		}
 
 		// Integer part
-		while (std::isdigit((unsigned char)*s)) {
+		while (std::isdigit(static_cast<unsigned char>(*s))) {
 			saw_digit = true;
 			value = value * 10.0 + (*s - '0');
 			s++;
@@ -183,7 +187,7 @@ public:
 		// Fractional part
 		if (*s == '.') {
 			s++;
-			while (std::isdigit((unsigned char)*s)) {
+			while (std::isdigit(static_cast<unsigned char>(*s))) {
 				saw_digit = true;
 				value = value * 10.0 + (*s - '0');
 				s++;
@@ -205,8 +209,8 @@ public:
 				if (*s == '-') exp_sign = true;
 				s++;
 			}
-			if (std::isdigit((unsigned char)*s)) {
-				while (std::isdigit((unsigned char)*s)) {
+			if (std::isdigit(static_cast<unsigned char>(*s))) {
+				while (std::isdigit(static_cast<unsigned char>(*s))) {
 					exp_val = exp_val * 10 + (*s - '0');
 					s++;
 				}
@@ -268,6 +272,8 @@ public:
 	}
 };
 
+} // namespace detail
+
 enum StateType {
 	// Symbols
 	None = 0,
@@ -289,24 +295,17 @@ class Reader {
 public:
 	struct Error {
 		std::string what_;
+		size_t offset = 0;
+		size_t line = 0;
+		size_t column = 0;
 		std::string what() const { return what_; }
 	};
 private:
-	static std::string to_stdstr(std::vector<char> const &vec)
-	{
-		if (!vec.empty()) {
-			char const *begin = &vec[0];
-			char const *end = begin + vec.size();
-			return std::string(begin, end);
-		}
-		return std::string();
-	}
-
 	int scan_space(char const *begin, char const *end)
 	{
 		char const *ptr = begin;
 		while (ptr < end) {
-			if (std::isspace((unsigned char)*ptr)) {
+			if (std::isspace(static_cast<unsigned char>(*ptr))) {
 				ptr++;
 				continue;
 			}
@@ -339,14 +338,13 @@ private:
 	{
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
-		std::vector<char> vec;
+		char const *start = ptr;
 		while (ptr < end) {
-			if (!isalnum((unsigned char)*ptr) && *ptr != '_') break;
-			vec.push_back(*ptr);
+			if (!std::isalnum(static_cast<unsigned char>(*ptr)) && *ptr != '_') break;
 			ptr++;
 		}
-		if (ptr > begin && !vec.empty()) {
-			*out = to_stdstr(vec);
+		if (ptr > start) {
+			*out = std::string(start, ptr);
 			return int(ptr - begin);
 		}
 		out->clear();
@@ -359,9 +357,7 @@ private:
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
 
-		std::vector<char> vec;
-
-		if (d.allow_hexadicimal) {
+		if (d.allow_hexadecimal) {
 			char const *p = ptr;
 			bool sign = false;
 			if (p + 1 < end && *p == '-') {
@@ -370,14 +366,23 @@ private:
 			}
 			if (p + 1 < end && *p == '0' && (p[1] == 'x' || p[1] == 'X')) {
 				p += 2;
-				while (p < end && isxdigit((unsigned char)*p)) {
-					vec.push_back(*p);
+				char const *digits = p;
+				while (p < end && std::isxdigit(static_cast<unsigned char>(*p))) {
 					p++;
 				}
-				vec.push_back(0);
-				long long v = strtoll(vec.data(), nullptr, 16);
-				*out = double(sign ? -v : v);
-				return int(p - begin);
+				if (p > digits) {
+					long long v = 0;
+					for (char const *q = digits; q < p; ++q) {
+						unsigned char c = static_cast<unsigned char>(*q);
+						int digit = 0;
+						if (c >= '0' && c <= '9') digit = c - '0';
+						else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+						else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+						v = v * 16 + digit;
+					}
+					*out = double(sign ? -v : v);
+					return int(p - begin);
+				}
 			}
 		}
 
@@ -388,39 +393,45 @@ private:
 				p++;
 				sign = true;
 			}
-			while (p < end && isalpha((unsigned char)*p)) {
-				vec.push_back(*p);
+			char const *word = p;
+			while (p < end && std::isalpha(static_cast<unsigned char>(*p))) {
 				p++;
 			}
-			vec.push_back(0);
-			if (strcmp(vec.data(), "Infinity") == 0) {
-				ptr = p;
+			size_t len = p - word;
+			if (len == 8 && std::strncmp(word, "Infinity", 8) == 0) {
 				*out = sign ? -INFINITY : INFINITY;
-			} else if (strcmp(vec.data(), "NaN") == 0) {
-				ptr = p;
-				*out = NAN;
+				return int(p - begin);
 			}
-			if (ptr > begin) {
-				return int(ptr - begin);
+			if (len == 3 && std::strncmp(word, "NaN", 3) == 0) {
+				*out = NAN;
+				return int(p - begin);
 			}
 		}
 
+		char const *start = ptr;
 		while (ptr < end) {
 			char c = *ptr;
-			if (isdigit((unsigned char)c) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E') {
-				// thru
+			if (std::isdigit(static_cast<unsigned char>(c)) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E') {
+				ptr++;
 			} else {
 				break;
 			}
-			vec.push_back(c);
-			ptr++;
 		}
-		vec.push_back(0);
+		if (start == ptr) return 0;
 
-		// use my_strtod instead of strtod, because strtod is locale dependent
-		// *out = strtod(vec.data(), nullptr);
-		// std::from_chars(vec.data(), vec.data() + vec.size(), *out); // C++17
-		*out = misc::my_strtod(vec.data(), nullptr);
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+		// std::from_chars for double is available: parse without copying.
+		auto [p2, ec] = std::from_chars(start, ptr, *out);
+		if (ec == std::errc{}) {
+			(void)p2;
+			return int(ptr - begin);
+		}
+#endif
+
+		// Fallback: copy to a null-terminated buffer for locale-independent strtod.
+		std::vector<char> vec(start, ptr);
+		vec.push_back(0);
+		*out = detail::misc::my_strtod(vec.data(), nullptr);
 
 		return int(ptr - begin);
 	}
@@ -429,78 +440,96 @@ private:
 	{
 		char const *ptr = begin;
 		ptr += scan_space(ptr, end);
-		if (*ptr == '\"') {
+		if (ptr < end && *ptr == '\"') {
 			ptr++;
-			std::vector<char> vec;
+			std::string s;
+			s.reserve(static_cast<size_t>(end - ptr));
 			while (ptr < end) {
 				if (*ptr == '\"') {
-					*out = to_stdstr(vec);
+					*out = std::move(s);
 					ptr++;
 					return int(ptr - begin);
 				} else if (*ptr == '\\') {
 					ptr++;
-					if (ptr < end) {
-						auto push = [&](char c){ vec.push_back(c); ptr++;};
-						switch (*ptr) {
-						case 'b': push('\b'); break;
-						case 'n': push('\n'); break;
-						case 'r': push('\r'); break;
-						case 'f': push('\f'); break;
-						case 't': push('\t'); break;
-						case 'v': push('\v'); break;
-						case '\\':
-						case '\"':
-							push(*ptr);
-							break;
-						case 'u':
-							ptr++;
-							if (ptr + 3 < end) {
-								char tmp[5];
-								tmp[0] = ptr[0];
-								tmp[1] = ptr[1];
-								tmp[2] = ptr[2];
-								tmp[3] = ptr[3];
-								tmp[4] = 0;
-								ptr += 4;
-								uint32_t unicode = (uint32_t)strtol(tmp, nullptr, 16);
-								if (unicode >= 0xd800 && unicode < 0xdc00) {
-									if (ptr + 5 < end && ptr[0] == '\\' && ptr[1] == 'u') {
-										tmp[0] = ptr[2];
-										tmp[1] = ptr[3];
-										tmp[2] = ptr[4];
-										tmp[3] = ptr[5];
-										uint32_t surrogate = (uint32_t)strtol(tmp, nullptr, 16);
-										if (surrogate >= 0xdc00 && surrogate < 0xe000) {
-											ptr += 6;
-											unicode = ((unicode - 0xd800) << 10) + (surrogate - 0xdc00) + 0x10000;
-										}
-									}
-								}
-								if (unicode < (1 << 7)) {
-									vec.push_back(unicode & 0x7f);
-								} else if (unicode < (1 << 11)) {
-									vec.push_back(((unicode >> 6) & 0x1f) | 0xc0);
-									vec.push_back((unicode & 0x3f) | 0x80);
-								} else if (unicode < (1 << 16)) {
-									vec.push_back(((unicode >> 12) & 0x0f) | 0xe0);
-									vec.push_back(((unicode >> 6) & 0x3f) | 0x80);
-									vec.push_back((unicode & 0x3f) | 0x80);
-								} else if (unicode < (1 << 21)) {
-									vec.push_back(((unicode >> 18) & 0x07) | 0xf0);
-									vec.push_back(((unicode >> 12) & 0x3f) | 0x80);
-									vec.push_back(((unicode >> 6) & 0x3f) | 0x80);
-									vec.push_back((unicode & 0x3f) | 0x80);
-								}
+					if (ptr >= end) break;
+					char c = *ptr;
+					switch (c) {
+					case 'b': s.push_back('\b'); ptr++; break;
+					case 'n': s.push_back('\n'); ptr++; break;
+					case 'r': s.push_back('\r'); ptr++; break;
+					case 'f': s.push_back('\f'); ptr++; break;
+					case 't': s.push_back('\t'); ptr++; break;
+					case 'v': s.push_back('\v'); ptr++; break;
+					case '\\':
+					case '\"':
+						s.push_back(c); ptr++;
+						break;
+					case 'u':
+					{
+						ptr++;
+						auto parse_hex4 = [&](char const *p, uint32_t *out_unicode) -> int {
+							if (p + 4 > end) return 0;
+							for (int i = 0; i < 4; i++) {
+								if (!std::isxdigit(static_cast<unsigned char>(p[i]))) return 0;
 							}
-							break;
-						default:
-							vec.push_back(*ptr);
-							ptr++;
-							break;
+							char tmp[5] = { p[0], p[1], p[2], p[3], 0 };
+							*out_unicode = static_cast<uint32_t>(std::strtol(tmp, nullptr, 16));
+							return 4;
+						};
+						uint32_t unicode = 0;
+						int n = parse_hex4(ptr, &unicode);
+						if (n == 0) {
+							push_error("invalid unicode escape");
+							return 0;
 						}
+						ptr += n;
+						if (unicode >= 0xd800 && unicode < 0xdc00) {
+							uint32_t surrogate = 0;
+							if (ptr + 5 < end && ptr[0] == '\\' && ptr[1] == 'u') {
+								int n2 = parse_hex4(ptr + 2, &surrogate);
+								if (n2 == 4 && surrogate >= 0xdc00 && surrogate < 0xe000) {
+									ptr += 6;
+									unicode = ((unicode - 0xd800) << 10) + (surrogate - 0xdc00) + 0x10000;
+								} else {
+									push_error("invalid surrogate pair");
+									return 0;
+								}
+							} else {
+								push_error("unpaired high surrogate");
+								return 0;
+							}
+						} else if (unicode >= 0xdc00 && unicode < 0xe000) {
+							push_error("unpaired low surrogate");
+							return 0;
+						}
+						if (unicode >= 0x110000) {
+							push_error("invalid unicode code point");
+							return 0;
+						}
+						if (unicode < 0x80) {
+							s.push_back(static_cast<char>(unicode));
+						} else if (unicode < 0x800) {
+							s.push_back(static_cast<char>(((unicode >> 6) & 0x1f) | 0xc0));
+							s.push_back(static_cast<char>((unicode & 0x3f) | 0x80));
+						} else if (unicode < 0x10000) {
+							s.push_back(static_cast<char>(((unicode >> 12) & 0x0f) | 0xe0));
+							s.push_back(static_cast<char>(((unicode >> 6) & 0x3f) | 0x80));
+							s.push_back(static_cast<char>((unicode & 0x3f) | 0x80));
+						} else {
+							s.push_back(static_cast<char>(((unicode >> 18) & 0x07) | 0xf0));
+							s.push_back(static_cast<char>(((unicode >> 12) & 0x3f) | 0x80));
+							s.push_back(static_cast<char>(((unicode >> 6) & 0x3f) | 0x80));
+							s.push_back(static_cast<char>((unicode & 0x3f) | 0x80));
+						}
+						break;
+					}
+					default:
+						s.push_back(c);
+						ptr++;
+						break;
 					}
 				} else {
-					vec.push_back(*ptr);
+					s.push_back(*ptr);
 					ptr++;
 				}
 			}
@@ -531,7 +560,7 @@ private:
 		bool allow_comment = false;
 		bool allow_ambiguous_comma = false;
 		bool allow_unquoted_key = false;
-		bool allow_hexadicimal = false;
+		bool allow_hexadecimal = false;
 		bool allow_special_constant = false;
 		bool allow_key_in_array = false;
 		std::vector<std::string> depth;
@@ -547,6 +576,21 @@ private:
 
 		Error err;
 		err.what_ = what;
+		if (d.ptr && d.begin && d.ptr >= d.begin) {
+			err.offset = static_cast<size_t>(d.ptr - d.begin);
+			size_t line = 1;
+			size_t column = 1;
+			for (char const *p = d.begin; p < d.ptr; ++p) {
+				if (*p == '\n') {
+					line++;
+					column = 1;
+				} else if (*p != '\r') {
+					column++;
+				}
+			}
+			err.line = line;
+			err.column = column;
+		}
 		d.errors.push_back(err);
 	}
 
@@ -766,40 +810,42 @@ private:
 					push_state(Number);
 					return true;
 				}
-				if (isalpha((unsigned char)*d.ptr)) {
-					auto n = parse_symbol(d.ptr, d.end, &d.string);
-					if (n > 0) {
-						if (state() == Key || state() == Comma || state() == StartArray) {
-							d.ptr += n;
-							if (d.string == "false") {
-								push_state(False);
-								return true;
-							}
-							if (d.string == "true") {
-								push_state(True);
-								return true;
-							}
-							if (d.string == "null") {
-								push_state(Null);
-								return true;
-							}
+			if (std::isalpha(static_cast<unsigned char>(*d.ptr))) {
+				auto n = parse_symbol(d.ptr, d.end, &d.string);
+				if (n > 0) {
+					if (state() == Key || state() == Comma || state() == StartArray) {
+						d.ptr += n;
+						if (d.string == "false") {
+							push_state(False);
+							return true;
+						}
+						if (d.string == "true") {
+							push_state(True);
+							return true;
+						}
+						if (d.string == "null") {
+							push_state(Null);
+							return true;
 						}
 					}
 				}
-			} else if (d.allow_unquoted_key) {
-				auto n = parse_symbol(d.ptr, d.end, &d.string);
-				if (n > 0) {
-					n += scan_space(d.ptr + n, d.end);
-					if (d.ptr[n] == ':') {
-						d.ptr += n + 1;
-						d.key = d.string;
-						push_state(Key);
-						return true;
-					}
+			}
+		} else if (d.allow_unquoted_key) {
+			auto n = parse_symbol(d.ptr, d.end, &d.string);
+			if (n > 0) {
+				n += scan_space(d.ptr + n, d.end);
+				if (d.ptr[n] == ':') {
+					d.ptr += n + 1;
+					d.key = d.string;
+					push_state(Key);
+					return true;
 				}
 			}
+		}
+		if (!has_error()) {
 			push_error("syntax error");
-			break;
+		}
+		break;
 		}
 		return false;
 	}
@@ -850,9 +896,15 @@ public:
 	{
 		d.allow_unquoted_key = allow;
 	}
+	void allow_hexadecimal(bool allow)
+	{
+		d.allow_hexadecimal = allow;
+	}
+
+	[[deprecated("use allow_hexadecimal instead")]]
 	void allow_hexadicimal(bool allow)
 	{
-		d.allow_hexadicimal = allow;
+		allow_hexadecimal(allow);
 	}
 	void allow_special_constant(bool allow)
 	{
@@ -1202,7 +1254,7 @@ private:
 
 	bool print_number(double v)
 	{
-		std::string s = misc::format_double(v, allow_nan_);
+		std::string s = detail::misc::format_double(v, allow_nan_);
 		if (s.empty()) {
 			print("null");
 			return false;

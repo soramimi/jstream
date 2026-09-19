@@ -219,7 +219,7 @@ public class ExtremeTests {
 				metaId = reader.StringValue;
 			} else if (reader.Match("{meta{timestamp")) {
 				metaTimestamp = reader.StringValue;
-			} else if (reader.Match("{meta{flags[*") && reader.IsValue) {
+			} else if (reader.Match("{meta{flags[*") && reader.IsConstant) {
 				metaFlags.Add(reader.GetVariant());
 			} else if (reader.Match("{config{version")) {
 				configVersion = reader.StringValue;
@@ -232,7 +232,7 @@ public class ExtremeTests {
 			} else if (reader.Match("{config{features{experimental{parameters{gamma{enabled")) {
 				gammaEnabled = reader.IsTrue;
 			} else if (reader.Match("{config{features{experimental{parameters{gamma{notes[**")) {
-				if (reader.IsValue) {
+				if (reader.IsConstant) {
 					gammaNotes.Add(new Variant(reader.StringValue));
 				} else if (reader.IsStartObject) {
 					reader.Nest();
@@ -242,7 +242,7 @@ public class ExtremeTests {
 						}
 					} while (reader.Next());
 				}
-			} else if (reader.Match("{config{features{deprecated[*") && reader.IsValue) {
+			} else if (reader.Match("{config{features{deprecated[*") && reader.IsConstant) {
 				deprecatedFeatures.Add(reader.GetVariant());
 			} else if (reader.Match("{data[*")) {
 				double userId = 0;
@@ -261,9 +261,9 @@ public class ExtremeTests {
 						userActive = reader.IsTrue;
 					} else if (reader.Match("{data[{user{profile{bio")) {
 						userBio = reader.StringValue;
-					} else if (reader.Match("{data[{user{roles[*") && reader.IsValue) {
+					} else if (reader.Match("{data[{user{roles[*") && reader.IsConstant) {
 						userRoles.Add(reader.GetVariant());
-					} else if (reader.MatchStartObject("{data[{user{roles[*")) {
+					} else if (reader.MatchStartObject("{data[{user{roles[*{")) {
 						// Handle role objects like {"type": "custom", "name": "α-β"}
 						var roleObject = new JObject();
 						reader.Nest();
@@ -292,7 +292,7 @@ public class ExtremeTests {
 			} else if (reader.Match("{misc{types{array[*")) {
 				reader.Nest();
 				do {
-					if (reader.IsValue) {
+					if (reader.IsConstant) {
 						typesArray.Add(new Variant(reader.Number));
 					}
 				} while (reader.Next());
@@ -389,7 +389,7 @@ public class ExtremeTests {
 				} else if (reader.Match("{params{name")) {
 					mcp.Params.Name = reader.StringValue;
 				} else if (reader.Match("{params{arguments{*")) {
-					if (reader.IsValue) {
+					if (reader.IsConstant) {
 						var argument = new ModelContextProtocol.ParamsData.Argument {
 							Name = reader.Key,
 							Value = reader.StringValue

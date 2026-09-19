@@ -5,15 +5,16 @@ using System.Text;
 namespace JStream;
 
 public class Writer {
-	private readonly Action<string> _output;
+	private readonly Action<string>? _output;
 	private readonly List<int> _stack = new();
+	private readonly StringBuilder _stringOut = new();
 	private bool _enableIndent = true;
 	private bool _enableNewline = true;
 	private bool _allowNaN = false;
 
 	public Writer(Action<string>? output = null)
 	{
-		_output = output ?? Console.Write;
+		_output = output;
 		_stack.Add(0);
 	}
 
@@ -32,8 +33,16 @@ public class Writer {
 		set => _allowNaN = value;
 	}
 
-	private void Print(string text) => _output(text);
-	private void Print(char ch) => _output(ch.ToString());
+	private void Print(string text)
+	{
+		if (_output != null) {
+			_output(text);
+		} else {
+			_stringOut.Append(text);
+		}
+	}
+
+	private void Print(char ch) => Print(ch.ToString());
 
 	private void PrintNewline()
 	{
@@ -278,9 +287,24 @@ public class Writer {
 		WriteVariant("", variant);
 	}
 
+	public void Raw(string name, string value)
+	{
+		PrintValue(name, () => {
+			Print(value);
+			return true;
+		});
+	}
+
+	public void Raw(string value)
+	{
+		Raw("", value);
+	}
+
 	public void Finish()
 	{
 		if (_stack.Count > 0 && _stack[0] > 0)
 			PrintNewline();
 	}
+
+	public override string ToString() => _stringOut.ToString();
 }

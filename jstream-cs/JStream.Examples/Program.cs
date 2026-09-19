@@ -183,7 +183,7 @@ class Program {
 		var events = new List<(StateType state, string key, string value, string path)>();
 
 		while (reader.Next()) {
-			var eventItem = (reader.State, reader.Key, reader.IsValue ? reader.StringValue : "", reader.Path);
+			var eventItem = (reader.State, reader.Key, reader.IsConstant ? reader.StringValue : "", reader.Path);
 			events.Add(eventItem);
 		}
 
