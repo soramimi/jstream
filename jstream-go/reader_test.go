@@ -114,3 +114,34 @@ func TestReaderMatchStartObject(t *testing.T) {
 		t.Errorf("count = %d, want 2", count)
 	}
 }
+
+func TestReaderAtRelativePath(t *testing.T) {
+	json := `{
+		"array": [
+			{"value": 123},
+			456
+		]
+	}`
+	reader := NewReader(json)
+	var values []float64
+	for reader.Next() {
+		if reader.Match("{array[**") {
+			reader.Nest(func() {
+				if reader.Match("@{value") {
+					values = append(values, reader.Number())
+				} else if reader.IsConstant() {
+					values = append(values, reader.Number())
+				}
+			})
+		}
+	}
+	if len(values) != 2 {
+		t.Fatalf("len(values) = %d, want 2", len(values))
+	}
+	if values[0] != 123 {
+		t.Errorf("values[0] = %v, want 123", values[0])
+	}
+	if values[1] != 456 {
+		t.Errorf("values[1] = %v, want 456", values[1])
+	}
+}

@@ -177,6 +177,7 @@ Path expressions provide a concise way to match JSON locations:
 - `*[` - Match any array start
 - `*{` - Match any object start
 - `**` - Match any nested path (must be at the end)
+- `@...` - Relative path from the current `nest()` baseline
 
 Examples:
 
@@ -185,6 +186,12 @@ reader.match("{user{name");           // user.name
 reader.match("{items[*{price");       // items[].price
 reader.match("{items[*{price");       // price inside any object in items
 reader.match_start_object("{items[*{"); // any object inside items array
+
+reader.nest([&](){                    // enter nested scope
+    if (reader.match("@{value")) {    // match "value" relative to nest baseline
+        // ...
+    }
+});
 ```
 
 ## State Inspection
@@ -219,7 +226,8 @@ make
 ## Ports
 
 - **C#**: `jstream-cs/` directory. See `README_CSharp.md`.
-- **Go**: `jstream-go/` directory. See `README_Go.md` (also `jstream-go/README.md`).
+- **Go**: `jstream-go/` directory. See `README_Go.md`.
+- **日本語**: `README_ja.md`
 
 ## License
 

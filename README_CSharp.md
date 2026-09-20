@@ -174,6 +174,7 @@ Path expressions provide a concise way to match JSON locations:
 - `*[` - Match any array start
 - `*{` - Match any object start
 - `**` - Match any nested path (must be at the end)
+- `@...` - Relative path from the current `Nest()` baseline
 
 Examples:
 
@@ -182,6 +183,12 @@ reader.Match("{user{name");              // user.name
 reader.Match("{items[*{price");          // price inside any object in items
 reader.MatchStartObject("{items[*{");    // any object inside items array
 reader.Match("{config{**");              // any nested path under config
+
+reader.Nest(() => {                       // enter nested scope
+    if (reader.Match("@{value")) {        // match "value" relative to nest baseline
+        // ...
+    }
+});
 ```
 
 ## State Inspection

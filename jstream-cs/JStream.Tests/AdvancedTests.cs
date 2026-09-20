@@ -298,4 +298,38 @@ public class AdvancedTests {
 		Assert.Equal("6", values[1]);
 		Assert.Equal("done", values[2]);
 	}
+
+	[Fact]
+	public void Reader_AtRelativePath_Test()
+	{
+		const string json = """
+        {
+            "array": [
+                {
+                    "value": 123
+                },
+                456
+            ]
+        }
+        """;
+
+		var values = new List<double>();
+		var reader = new Reader(json);
+
+		while (reader.Next()) {
+			if (reader.Match("{array[**")) {
+				reader.Nest(() => {
+					if (reader.Match("@{value")) {
+						values.Add(reader.Number);
+					} else if (reader.IsConstant) {
+						values.Add(reader.Number);
+					}
+				});
+			}
+		}
+
+		Assert.Equal(2, values.Count);
+		Assert.Equal(123, values[0]);
+		Assert.Equal(456, values[1]);
+	}
 }

@@ -175,6 +175,7 @@ Path expressions provide a concise way to match JSON locations:
 - `*[` - Match any array start
 - `*{` - Match any object start
 - `**` - Match any nested path (must be at the end)
+- `@...` - Relative path from the current `Nest()` baseline
 
 Examples:
 
@@ -183,6 +184,12 @@ reader.Match("{user{name")              // user.name
 reader.Match("{items[*{price")          // price inside any object in items
 reader.MatchStartObject("{items[*{")    // any object inside items array
 reader.Match("{config{**")              // any nested path under config
+
+reader.Nest(func() {                    // enter nested scope
+    if reader.Match("@{value") {        // match "value" relative to nest baseline
+        // ...
+    }
+})
 ```
 
 ## State Inspection
@@ -255,12 +262,13 @@ The default run parses the JSON 10,000 times.
 - `example/` - Usage example
 - `benchmark/` - Performance benchmark
 - `Makefile` - Top-level build/test convenience targets
-- `README.md` - This document
+- `README_Go.md` - This document
 
 ## Ports
 
 - **C++**: the original implementation in `include/jstream.h`. See `README.md`.
 - **C#**: `jstream-cs/` directory. See `README_CSharp.md`.
+- **日本語**: See `README_ja.md`.
 
 ## Differences from C++ Version
 

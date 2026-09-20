@@ -28,7 +28,7 @@ public class Reader {
 	private int _position;
 	private readonly List<StateItem> _states = new();
 	private readonly List<string> _depth = new();
-	private readonly List<int> _depthStack = new();
+	private readonly List<NestItem> _depthStack = new();
 	private string _key = string.Empty;
 	private string _stringValue = string.Empty;
 	private double _numberValue;
@@ -53,6 +53,11 @@ public class Reader {
 			Type = type;
 			Position = position;
 		}
+	}
+
+	private struct NestItem {
+		public int Depth { get; set; }
+		public string Path { get; set; }
 	}
 
 	public Reader(string json)
@@ -133,20 +138,20 @@ public class Reader {
 		_hold = true;
 	}
 
-	public void Nest()
-	{
-		_depthStack.Add(Depth);
-	}
+    public void Nest()
+    {
+        _depthStack.Add(new NestItem { Depth = Depth, Path = Path });
+    }
 
-	public void Nest(Action callback)
-	{
-		Nest();
-		do {
-			callback();
-		} while (Next());
-	}
+    public void Nest(Action callback)
+    {
+        Nest();
+        do {
+            callback();
+        } while (Next());
+    }
 
-	public string Extract()
+    public string Extract()
 	{
 		if (_lastState != null) {
 			int pos = _lastState.Value.Position;
@@ -170,16 +175,16 @@ public class Reader {
 			return true;
 		}
 
-		if (InternalNext()) {
-			if (_depthStack.Count == 0)
-				return true;
+        if (InternalNext()) {
+            if (_depthStack.Count == 0)
+                return true;
 
-			if (Depth >= _depthStack[^1])
-				return true;
+            if (Depth >= _depthStack[^1].Depth)
+                return true;
 
-			_depthStack.RemoveAt(_depthStack.Count - 1);
-			Hold();
-		}
+            _depthStack.RemoveAt(_depthStack.Count - 1);
+            Hold();
+        }
 
 		return false;
 	}
@@ -656,12 +661,19 @@ public class Reader {
 		_errors.Add(new Error(message, offset, line, column));
 	}
 
-	public bool Match(string path, bool matchEndStructure = false)
-	{
-		if (!IsValue)
-			return false;
+    public bool Match(string path, bool matchEndStructure = false)
+    {
+        if (!IsValue)
+            return false;
 
-		int pathPos = 0;
+        if (!string.IsNullOrEmpty(path) && path[0] == '@') {
+            if (_depthStack.Count > 0) {
+                var item = _depthStack[^1];
+                path = item.Path + path.Substring(1);
+            }
+        }
+
+        int pathPos = 0;
 
 		char Path(int i) => i < path.Length ? path[i] : '\0';
 

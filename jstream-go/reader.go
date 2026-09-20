@@ -21,7 +21,7 @@ type Reader struct {
 	pos    int
 	states []stateItem
 	depth  []string
-	depthStack []int
+	depthStack []nestItem
 	key    string
 	stringValue string
 	numberValue float64
@@ -41,6 +41,11 @@ type Reader struct {
 type stateItem struct {
 	stateType StateType
 	pos       int
+}
+
+type nestItem struct {
+	depth int
+	path  string
 }
 
 // NewReader creates a new Reader for the given JSON text.
@@ -138,7 +143,7 @@ func (r *Reader) Reset() { r.errors = nil }
 func (r *Reader) Hold()  { r.hold = true }
 
 func (r *Reader) Nest(callback ...func()) {
-	r.depthStack = append(r.depthStack, r.Depth())
+	r.depthStack = append(r.depthStack, nestItem{depth: r.Depth(), path: r.Path()})
 	if len(callback) > 0 && callback[0] != nil {
 		fn := callback[0]
 		for {
@@ -159,7 +164,7 @@ func (r *Reader) Next() bool {
 		if len(r.depthStack) == 0 {
 			return true
 		}
-		if r.Depth() >= r.depthStack[len(r.depthStack)-1] {
+		if r.Depth() >= r.depthStack[len(r.depthStack)-1].depth {
 			return true
 		}
 		r.depthStack = r.depthStack[:len(r.depthStack)-1]
@@ -630,6 +635,12 @@ func (r *Reader) Match(path string, matchEndStructure ...bool) bool {
 	}
 	if !r.IsValue() {
 		return false
+	}
+	if len(path) > 0 && path[0] == '@' {
+		if len(r.depthStack) > 0 {
+			item := r.depthStack[len(r.depthStack)-1]
+			path = item.path + path[1:]
+		}
 	}
 	pathPos := 0
 	pathChar := func(i int) byte {
