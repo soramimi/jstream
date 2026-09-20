@@ -153,6 +153,37 @@ if (reader.HasError)
 }
 ```
 
+### Streaming Input
+
+`Reader` can parse JSON that arrives incrementally. Use the constructor that takes an input callback, call `Input(string)` to append data, and check `IsNotEnoughInput` when parsing pauses mid-token.
+
+```csharp
+using JStream;
+
+var chunks = new[] {
+    "{ \"name\": \"John\", \"a",
+    "ge\": 30 }"
+};
+int index = 0;
+Reader? reader = null;
+reader = new Reader(() => {
+    if (index < chunks.Length) {
+        reader!.Input(chunks[index]);
+    }
+    index++;
+});
+
+while (reader.Next()) {
+    if (reader.Match("{name") && reader.IsString) {
+        Console.WriteLine($"Name: {reader.StringValue}");
+    } else if (reader.Match("{age") && reader.IsNumber) {
+        Console.WriteLine($"Age: {reader.Number}");
+    }
+}
+```
+
+When a stream contains multiple top-level JSON documents, parse the first document, call `NextDocument()` to clear the `EndDocument` state, and continue parsing.
+
 ## Configuration Options
 
 The `Reader` class supports the following configuration options:
@@ -197,11 +228,12 @@ Useful predicates and accessors on `Reader`:
 
 - `State` - Current state (`StateType`)
 - `IsConstant`, `IsStructure`, `IsValue` - Classify the current state (`IsValue = IsConstant || IsStructure`)
-- `IsStartObject`, `IsEndObject`, `IsStartArray`, `IsEndArray`
+- `IsStartObject`, `IsEndObject`, `IsStartArray`, `IsEndArray`, `IsEndDocument`
 - `IsNull`, `IsBoolean`, `IsFalse`, `IsTrue`, `IsNumber`, `IsString`
 - `Key`, `StringValue`, `Number`, `BooleanValue`
 - `Path`, `Depth`, `Tell`
 - `Extract()` - Raw text of the last parsed element
+- `IsNotEnoughInput` - True when parsing paused because the buffer ended mid-token (streaming mode)
 
 ## Building and Testing
 

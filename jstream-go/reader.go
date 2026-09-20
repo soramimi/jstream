@@ -36,6 +36,64 @@ type Reader struct {
 	AllowHexadecimal     bool
 	AllowSpecialConstant bool
 	AllowKeyInArray      bool
+
+	inputCallback       func()
+	notEnoughInput      bool
+	commentState        byte // 0=none, '/'=line comment, '*'=block comment
+	extractionSupport   bool
+}
+
+// NewReader creates a new Reader for the given JSON text.
+func NewReader(json string) *Reader {
+	return &Reader{json: json, extractionSupport: true}
+}
+
+// NewReaderWithCallback creates a streaming Reader with the given input callback.
+func NewReaderWithCallback(callback func()) *Reader {
+	return &Reader{inputCallback: callback, extractionSupport: false}
+}
+
+// Input appends incremental input to the internal buffer. It is used in
+// streaming mode after NewReaderWithCallback, or directly with NewReader.
+func (r *Reader) Input(in string) {
+	if in == "" {
+		return
+	}
+	r.notEnoughInput = false
+	r.extractionSupport = false
+	r.json = r.json[r.pos:] + in
+	r.pos = 0
+}
+
+// IsNotEnoughInput returns true when parsing was interrupted because the
+// buffer ended mid-token in streaming mode.
+func (r *Reader) IsNotEnoughInput() bool {
+	return r.notEnoughInput
+}
+
+// NextDocument clears the EndDocument state so the same Reader can parse the
+// next JSON document from the stream.
+func (r *Reader) NextDocument() {
+	if r.State() == StateEndDocument {
+		r.states = nil
+	}
+}
+
+func (r *Reader) needInput() {
+	if r.inputCallback != nil {
+		r.inputCallback()
+	}
+}
+
+func (r *Reader) peekNextChar() int {
+	if r.pos < len(r.json) {
+		return int(r.json[r.pos])
+	}
+	r.needInput()
+	if r.pos < len(r.json) {
+		return int(r.json[r.pos])
+	}
+	return -1
 }
 
 type stateItem struct {
@@ -46,11 +104,6 @@ type stateItem struct {
 type nestItem struct {
 	depth int
 	path  string
-}
-
-// NewReader creates a new Reader for the given JSON text.
-func NewReader(json string) *Reader {
-	return &Reader{json: json}
 }
 
 func (r *Reader) State() StateType {
@@ -125,6 +178,10 @@ func (r *Reader) Path() string {
 }
 
 func (r *Reader) Extract() string {
+	if !r.extractionSupport {
+		r.pushError("extract() is not supported in streaming input mode")
+		return ""
+	}
 	if r.lastState != nil {
 		return r.json[r.lastState.pos:r.pos]
 	}
@@ -133,6 +190,10 @@ func (r *Reader) Extract() string {
 
 // ExtractRange returns the raw text between two byte offsets.
 func (r *Reader) ExtractRange(begin, end int) string {
+	if !r.extractionSupport {
+		r.pushError("extract() is not supported in streaming input mode")
+		return ""
+	}
 	if begin >= 0 && end <= len(r.json) && begin <= end {
 		return r.json[begin:end]
 	}
@@ -170,6 +231,11 @@ func (r *Reader) Next() bool {
 		r.depthStack = r.depthStack[:len(r.depthStack)-1]
 		r.Hold()
 	}
+	if r.inputCallback != nil && !r.notEnoughInput {
+		if r.State() != StateEndDocument {
+			return true
+		}
+	}
 	return false
 }
 
@@ -190,11 +256,19 @@ func (r *Reader) GetVariant() Variant {
 }
 
 func (r *Reader) internalNext() bool {
+	notEnoughInput := true
+loop:
 	for r.pos < len(r.json) {
-		r.skipSpace()
+		notEnoughInput = false
+
+		if r.skipSpace() {
+			continue
+		}
 		if r.pos >= len(r.json) {
+			notEnoughInput = true
 			break
 		}
+
 		ch := r.json[r.pos]
 		switch ch {
 		case '}':
@@ -202,28 +276,80 @@ func (r *Reader) internalNext() bool {
 		case ']':
 			return r.handleEndArray()
 		case ',':
-			return r.handleComma()
+			r.pos++
+			if r.State() == StateKey {
+				r.pushState(stateItem{stateType: StateNull})
+				return true
+			}
+			r.skipSpace()
+			if r.IsStructure() || r.IsValue() {
+				r.popState()
+			}
+			r.pushState(stateItem{stateType: StateComma})
+			if r.AllowAmbiguousComma {
+				continue
+			}
+			continue
 		case '{':
 			return r.handleStartObject()
 		case '[':
 			return r.handleStartArray()
 		case '"':
-			return r.handleString()
+			if r.handleString() {
+				return true
+			}
+			if r.notEnoughInput {
+				notEnoughInput = true
+				break loop
+			}
+			return false
 		default:
 			if r.State() == StateKey || r.IsArray() {
 				if (ch >= '0' && ch <= '9') || ch == '-' || ch == '+' || ch == '.' {
-					return r.handleNumber()
+					if r.handleNumber() {
+						return true
+					}
+					if r.notEnoughInput {
+						notEnoughInput = true
+						break loop
+					}
+					return false
 				}
 				if (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') {
-					return r.handleSymbol()
+					if r.handleSymbol() {
+						return true
+					}
+					if r.notEnoughInput {
+						notEnoughInput = true
+						break loop
+					}
+					return false
 				}
 			} else if r.AllowUnquotedKey && ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')) {
-				return r.handleUnquotedKey()
+				if r.handleUnquotedKey() {
+					return true
+				}
+				if r.notEnoughInput {
+					notEnoughInput = true
+					break loop
+				}
 			}
 			r.pushError("Syntax error")
 			return false
 		}
 	}
+
+	if (r.State() == StateEndObject || r.State() == StateEndArray) && len(r.depth) == 0 {
+		r.pushState(stateItem{stateType: StateEndDocument})
+		return false
+	}
+
+	if notEnoughInput {
+		r.notEnoughInput = true
+		r.needInput()
+		return false
+	}
+
 	return false
 }
 
@@ -231,35 +357,47 @@ func isSpace(c byte) bool {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\r'
 }
 
-func (r *Reader) skipSpace() {
-	for r.pos < len(r.json) {
-		c := r.json[r.pos]
-		if isSpace(c) {
-			r.pos++
-			continue
-		}
-		if r.AllowComment && c == '/' && r.pos+1 < len(r.json) {
-			if r.json[r.pos+1] == '/' {
-				r.pos += 2
-				for r.pos < len(r.json) && r.json[r.pos] != '\n' && r.json[r.pos] != '\r' {
-					r.pos++
-				}
-				continue
+func (r *Reader) skipSpace() bool {
+	ret := false
+	for {
+		c := r.peekNextChar()
+		if c < 0 {
+			if r.commentState != 0 {
+				r.notEnoughInput = true
 			}
-			if r.json[r.pos+1] == '*' {
-				r.pos += 2
-				for r.pos+1 < len(r.json) {
-					if r.json[r.pos] == '*' && r.json[r.pos+1] == '/' {
+			break
+		}
+		if r.commentState != 0 {
+			if r.commentState == '*' {
+				if c == '/' {
+					r.commentState = 0
+				}
+			} else if r.commentState == '/' {
+				if c == '\n' || c == '\r' {
+					r.commentState = 0
+				}
+			}
+		} else if !isSpace(byte(c)) {
+			if r.AllowComment && c == '/' {
+				if r.pos+1 >= len(r.json) {
+					r.needInput()
+				}
+				if r.pos+1 < len(r.json) {
+					t := r.json[r.pos+1]
+					if t == '*' || t == '/' {
+						r.commentState = t
 						r.pos += 2
-						break
+						ret = true
+						continue
 					}
-					r.pos++
 				}
-				continue
 			}
+			break
 		}
-		break
+		r.pos++
+		ret = true
 	}
+	return ret
 }
 
 func (r *Reader) handleEndObject() bool {
@@ -312,23 +450,6 @@ func (r *Reader) handleEndArray() bool {
 	return false
 }
 
-func (r *Reader) handleComma() bool {
-	r.pos++
-	if r.State() == StateKey {
-		r.pushState(stateItem{stateType: StateNull})
-		return true
-	}
-	r.skipSpace()
-	if r.IsStructure() || r.IsValue() {
-		r.popState()
-	}
-	r.pushState(stateItem{stateType: StateComma})
-	if r.AllowAmbiguousComma {
-		return r.Next()
-	}
-	return true
-}
-
 func (r *Reader) handleStartObject() bool {
 	pos := r.pos
 	r.pos++
@@ -354,18 +475,24 @@ func (r *Reader) handleStartArray() bool {
 }
 
 func (r *Reader) handleString() bool {
-	s, ok := r.parseString()
-	if !ok {
-		r.pushError("Invalid string")
+	s, n, ok := r.parseString()
+	if !ok || r.pos+n == len(r.json) {
+		r.notEnoughInput = true
 		return false
 	}
+	r.pos += n
 	r.stringValue = s
+	r.skipSpace()
 	if r.State() == StateKey {
 		r.pushState(stateItem{stateType: StateString})
 		return true
 	}
-	r.skipSpace()
-	if r.pos < len(r.json) && r.json[r.pos] == ':' {
+	c := r.peekNextChar()
+	if c < 0 {
+		r.notEnoughInput = true
+		return false
+	}
+	if c == ':' {
 		if r.IsArray() {
 			if !r.AllowKeyInArray {
 				r.pushError("Unexpected key in array")
@@ -382,10 +509,12 @@ func (r *Reader) handleString() bool {
 }
 
 func (r *Reader) handleNumber() bool {
-	text, v, ok := r.parseNumber()
-	if !ok {
+	text, v, n, ok := r.parseNumber()
+	if !ok || r.pos+n == len(r.json) {
+		r.notEnoughInput = true
 		return false
 	}
+	r.pos += n
 	r.stringValue = text
 	r.numberValue = v
 	r.pushState(stateItem{stateType: StateNumber})
@@ -393,8 +522,9 @@ func (r *Reader) handleNumber() bool {
 }
 
 func (r *Reader) handleSymbol() bool {
-	sym, ok := r.parseSymbol()
-	if !ok {
+	sym, n, ok := r.parseSymbol()
+	if !ok || r.pos+n == len(r.json) {
+		r.notEnoughInput = true
 		return false
 	}
 	r.stringValue = sym
@@ -409,23 +539,26 @@ func (r *Reader) handleSymbol() bool {
 	default:
 		return false
 	}
+	r.pos += n
 	r.pushState(stateItem{stateType: st})
 	return true
 }
 
 func (r *Reader) handleUnquotedKey() bool {
-	sym, ok := r.parseSymbol()
-	if !ok {
+	sym, n, ok := r.parseSymbol()
+	if !ok || r.pos+n == len(r.json) {
+		r.notEnoughInput = true
 		return false
 	}
 	r.stringValue = sym
-	endPos := r.pos
-	tempPos := endPos
-	for tempPos < len(r.json) && isSpace(r.json[tempPos]) {
-		tempPos++
+	r.pos += n
+	r.skipSpace()
+	if r.pos >= len(r.json) {
+		r.notEnoughInput = true
+		return false
 	}
-	if tempPos < len(r.json) && r.json[tempPos] == ':' {
-		r.pos = tempPos + 1
+	if r.json[r.pos] == ':' {
+		r.pos++
 		r.key = r.stringValue
 		r.pushState(stateItem{stateType: StateKey})
 		return true
@@ -433,40 +566,42 @@ func (r *Reader) handleUnquotedKey() bool {
 	return false
 }
 
-func (r *Reader) parseSymbol() (string, bool) {
+func (r *Reader) parseSymbol() (string, int, bool) {
 	start := r.pos
-	for r.pos < len(r.json) {
-		c := r.json[r.pos]
+	p := r.pos
+	for p < len(r.json) {
+		c := r.json[p]
 		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
-			r.pos++
+			p++
 		} else {
 			break
 		}
 	}
-	if r.pos > start {
-		return r.json[start:r.pos], true
+	if p > start {
+		return r.json[start:p], p - start, true
 	}
-	return "", false
+	return "", 0, false
 }
 
-func (r *Reader) parseString() (string, bool) {
+func (r *Reader) parseString() (string, int, bool) {
 	if r.pos >= len(r.json) || r.json[r.pos] != '"' {
-		return "", false
+		return "", 0, false
 	}
-	r.pos++
+	start := r.pos
+	p := r.pos + 1
 	var sb strings.Builder
-	for r.pos < len(r.json) {
-		c := r.json[r.pos]
+	for p < len(r.json) {
+		c := r.json[p]
 		if c == '"' {
-			r.pos++
-			return sb.String(), true
+			p++
+			return sb.String(), p - start, true
 		}
 		if c == '\\' {
-			r.pos++
-			if r.pos >= len(r.json) {
-				break
+			p++
+			if p >= len(r.json) {
+				return "", 0, false
 			}
-			esc := r.json[r.pos]
+			esc := r.json[p]
 			switch esc {
 			case 'b':
 				sb.WriteByte('\b')
@@ -483,49 +618,50 @@ func (r *Reader) parseString() (string, bool) {
 			case '\\', '"':
 				sb.WriteByte(esc)
 			case 'u':
-				if r.pos+4 >= len(r.json) {
-					return "", false
+				if p+4 >= len(r.json) {
+					return "", 0, false
 				}
-				hex := r.json[r.pos+1 : r.pos+5]
+				hex := r.json[p+1 : p+5]
 				code, err := strconv.ParseInt(hex, 16, 32)
 				if err != nil {
-					return "", false
+					r.pushError("invalid unicode escape")
+					return "", 0, false
 				}
-				r.pos += 4
+				p += 4
 				if code >= 0xD800 && code < 0xDC00 {
-					if r.pos+6 >= len(r.json) || r.json[r.pos+1] != '\\' || r.json[r.pos+2] != 'u' {
-						return "", false
+					if p+6 >= len(r.json) || r.json[p+1] != '\\' || r.json[p+2] != 'u' {
+						return "", 0, false
 					}
-					lowHex := r.json[r.pos+3 : r.pos+7]
+					lowHex := r.json[p+3 : p+7]
 					low, err := strconv.ParseInt(lowHex, 16, 32)
 					if err != nil || low < 0xDC00 || low >= 0xE000 {
-						return "", false
+						return "", 0, false
 					}
-					r.pos += 6
+					p += 6
 					code = int64(((int(code)-0xD800)<<10)+(int(low)-0xDC00)+0x10000)
 					sb.WriteString(string(rune(code)))
 				} else if code >= 0xDC00 && code < 0xE000 {
-					return "", false
+					return "", 0, false
 				} else {
 					sb.WriteString(string(rune(code)))
 				}
 			default:
 				sb.WriteByte(esc)
 			}
-			r.pos++
+			p++
 			continue
 		}
 		sb.WriteByte(c)
-		r.pos++
+		p++
 	}
-	return "", false
+	return "", 0, false
 }
 
 func isHexDigit(c byte) bool {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
 }
 
-func (r *Reader) parseNumber() (string, float64, bool) {
+func (r *Reader) parseNumber() (string, float64, int, bool) {
 	start := r.pos
 
 	if r.AllowHexadecimal {
@@ -543,29 +679,29 @@ func (r *Reader) parseNumber() (string, float64, bool) {
 			}
 			if p > hexStart {
 				if v, err := strconv.ParseInt(r.json[hexStart:p], 16, 64); err == nil {
-					r.pos = p
-					return r.json[start:r.pos], sign * float64(v), true
+					return r.json[start:p], sign * float64(v), p - start, true
 				}
 			}
 		}
 	}
 
-	for r.pos < len(r.json) {
-		c := r.json[r.pos]
+	p := r.pos
+	for p < len(r.json) {
+		c := r.json[p]
 		if (c >= '0' && c <= '9') || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E' {
-			r.pos++
+			p++
 		} else {
 			break
 		}
 	}
-	if start == r.pos {
-		return "", 0, false
+	if p == start {
+		return "", 0, 0, false
 	}
-	text := r.json[start:r.pos]
+	text := r.json[start:p]
 	if v, ok := parseNumber(text, false, r.AllowSpecialConstant); ok {
-		return text, v, true
+		return text, v, p - start, true
 	}
-	return "", 0, false
+	return "", 0, 0, false
 }
 
 func (r *Reader) pushState(s stateItem) {

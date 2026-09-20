@@ -24,7 +24,7 @@ public class Error {
 }
 
 public class Reader {
-	private readonly string _json;
+	private string _json;
 	private int _position;
 	private readonly List<StateItem> _states = new();
 	private readonly List<string> _depth = new();
@@ -36,6 +36,13 @@ public class Reader {
 	private bool _hold;
 	private StateItem? _lastState;
 	private readonly List<Error> _errors = new();
+
+	// Streaming input support
+	private readonly Action? _inputCallback;
+	private bool _notEnoughInput;
+	private char _commentState;
+	private bool _tokenNotEnoughInput;
+	private bool _extractionSupport;
 
 	public bool AllowComment { get; set; }
 	public bool AllowAmbiguousComma { get; set; }
@@ -60,10 +67,25 @@ public class Reader {
 		public string Path { get; set; }
 	}
 
+	public Reader()
+	{
+		_json = string.Empty;
+		_position = 0;
+		_extractionSupport = true;
+	}
+
 	public Reader(string json)
 	{
 		_json = json ?? throw new ArgumentNullException(nameof(json));
 		_position = 0;
+		_extractionSupport = true;
+	}
+
+	public Reader(Action inputCallback)
+	{
+		_json = string.Empty;
+		_inputCallback = inputCallback ?? throw new ArgumentNullException(nameof(inputCallback));
+		_extractionSupport = false;
 	}
 
 	public StateType State => _states.Count > 0 ? _states[^1].Type : StateType.None;
@@ -73,6 +95,7 @@ public class Reader {
 	public bool IsEndObject => State == StateType.EndObject;
 	public bool IsStartArray => State == StateType.StartArray;
 	public bool IsEndArray => State == StateType.EndArray;
+	public bool IsEndDocument => State == StateType.EndDocument;
 	public bool IsConstant => IsConstantState();
 	public bool IsStructure => IsStructureState();
 	public bool IsValue => IsConstant || IsStructure;
@@ -91,6 +114,9 @@ public class Reader {
 	public int Depth => _depth.Count;
 	public string Path => GetPath();
 	public int Tell => _position;
+	public bool IsNotEnoughInput => _notEnoughInput;
+
+	private bool IsStreamingInputMode => _inputCallback != null;
 
 	private bool IsStructureState()
 	{
@@ -138,21 +164,42 @@ public class Reader {
 		_hold = true;
 	}
 
-    public void Nest()
-    {
-        _depthStack.Add(new NestItem { Depth = Depth, Path = Path });
-    }
-
-    public void Nest(Action callback)
-    {
-        Nest();
-        do {
-            callback();
-        } while (Next());
-    }
-
-    public string Extract()
+	public void Nest()
 	{
+		_depthStack.Add(new NestItem { Depth = Depth, Path = Path });
+	}
+
+	public void Nest(Action callback)
+	{
+		Nest();
+		do {
+			callback();
+		} while (Next());
+	}
+
+	public void Input(string input)
+	{
+		if (string.IsNullOrEmpty(input))
+			return;
+
+		_notEnoughInput = false;
+		_extractionSupport = false;
+
+		if (_position < _json.Length) {
+			_json = _json.Substring(_position) + input;
+		} else {
+			_json = input;
+		}
+		_position = 0;
+	}
+
+	public string Extract()
+	{
+		if (!_extractionSupport) {
+			PushError("extract() is not supported in streaming input mode");
+			return string.Empty;
+		}
+
 		if (_lastState != null) {
 			int pos = _lastState.Value.Position;
 			return _json.Substring(pos, _position - pos);
@@ -162,6 +209,11 @@ public class Reader {
 
 	public ReadOnlySpan<char> Extract(int begin, int end)
 	{
+		if (!_extractionSupport) {
+			PushError("extract() is not supported in streaming input mode");
+			return ReadOnlySpan<char>.Empty;
+		}
+
 		if (begin >= 0 && end <= _json.Length && begin <= end) {
 			return _json.AsSpan(begin, end - begin);
 		}
@@ -175,29 +227,110 @@ public class Reader {
 			return true;
 		}
 
-        if (InternalNext()) {
-            if (_depthStack.Count == 0)
-                return true;
+		if (InternalNext()) {
+			if (_depthStack.Count == 0)
+				return true;
 
-            if (Depth >= _depthStack[^1].Depth)
-                return true;
+			if (Depth >= _depthStack[^1].Depth)
+				return true;
 
-            _depthStack.RemoveAt(_depthStack.Count - 1);
-            Hold();
-        }
+			_depthStack.RemoveAt(_depthStack.Count - 1);
+			Hold();
+		}
+
+		if (IsStreamingInputMode && !_notEnoughInput) {
+			if (State != StateType.EndDocument) {
+				return true;
+			}
+		}
 
 		return false;
 	}
 
+	public void NextDocument()
+	{
+		if (State == StateType.EndDocument) {
+			_states.Clear();
+		}
+	}
+
+	private void NeedInput()
+	{
+		_inputCallback?.Invoke();
+	}
+
+	private int PeekNextChar()
+	{
+		if (_position < _json.Length) {
+			return _json[_position];
+		}
+		NeedInput();
+		if (_position < _json.Length) {
+			return _json[_position];
+		}
+		return -1;
+	}
+
+	private bool SkipSpace()
+	{
+		bool ret = false;
+		while (true) {
+			int c = PeekNextChar();
+			if (c < 0) {
+				if (_commentState != 0) {
+					_notEnoughInput = true;
+				}
+				break;
+			}
+			if (_commentState != 0) {
+				if (_commentState == '*') {
+					if (c == '/')
+						_commentState = (char)0;
+				} else if (_commentState == '/') {
+					if (c == '\n' || c == '\r')
+						_commentState = (char)0;
+				}
+			} else if (!char.IsWhiteSpace((char)c)) {
+				if (AllowComment && c == '/') {
+					if (_position + 1 >= _json.Length) {
+						NeedInput();
+					}
+					if (_position + 1 < _json.Length) {
+						char t = _json[_position + 1];
+						if (t == '*' || t == '/') {
+							_commentState = t;
+							_position += 2;
+							ret = true;
+							continue;
+						}
+					}
+				}
+				break;
+			}
+			_position++;
+			ret = true;
+		}
+		return ret;
+	}
+
 	private bool InternalNext()
 	{
-		while (_position < _json.Length) {
-			SkipWhitespaceAndComments();
+		bool notEnoughInput = true;
+		_tokenNotEnoughInput = false;
 
-			if (_position >= _json.Length)
+		while (_position < _json.Length) {
+			notEnoughInput = false;
+
+			if (SkipSpace())
+				continue;
+
+			if (_position >= _json.Length) {
+				notEnoughInput = true;
 				break;
+			}
 
 			char ch = _json[_position];
+			bool handled;
 
 			switch (ch) {
 			case '}':
@@ -211,60 +344,49 @@ public class Reader {
 			case '[':
 				return HandleStartArray();
 			case '"':
-				return HandleString();
+				handled = HandleString();
+				break;
 			default:
 				if (State == StateType.Key || IsArray) {
-					if (char.IsDigit(ch) || ch == '-' || ch == '+' || ch == '.')
-						return HandleNumber();
-
-					if (char.IsLetter(ch))
-						return HandleSymbol();
+					if (char.IsDigit(ch) || ch == '-' || ch == '+' || ch == '.') {
+						handled = HandleNumber();
+						break;
+					}
+					if (char.IsLetter(ch)) {
+						handled = HandleSymbol();
+						break;
+					}
 				} else if (AllowUnquotedKey && char.IsLetter(ch)) {
-					return HandleUnquotedKey();
+					handled = HandleUnquotedKey();
+					break;
 				}
-
 				PushError("Syntax error");
 				return false;
 			}
+
+			if (handled)
+				return true;
+
+			if (_tokenNotEnoughInput) {
+				notEnoughInput = true;
+				break;
+			}
+
+			return false;
+		}
+
+		if ((State == StateType.EndObject || State == StateType.EndArray) && _depth.Count == 0) {
+			PushState(new StateItem(StateType.EndDocument));
+			return false;
+		}
+
+		if (notEnoughInput) {
+			_notEnoughInput = true;
+			NeedInput();
+			return false;
 		}
 
 		return false;
-	}
-
-	private void SkipWhitespaceAndComments()
-	{
-		while (_position < _json.Length) {
-			char ch = _json[_position];
-
-			if (char.IsWhiteSpace(ch)) {
-				_position++;
-				continue;
-			}
-
-			if (AllowComment && ch == '/' && _position + 1 < _json.Length) {
-				char nextCh = _json[_position + 1];
-				if (nextCh == '/') {
-					_position += 2;
-					while (_position < _json.Length && _json[_position] != '\r' && _json[_position] != '\n')
-						_position++;
-					continue;
-				}
-
-				if (nextCh == '*') {
-					_position += 2;
-					while (_position + 1 < _json.Length) {
-						if (_json[_position] == '*' && _json[_position + 1] == '/') {
-							_position += 2;
-							break;
-						}
-						_position++;
-					}
-					continue;
-				}
-			}
-
-			break;
-		}
 	}
 
 	private bool HandleEndObject()
@@ -332,7 +454,7 @@ public class Reader {
 			return true;
 		}
 
-		SkipWhitespaceAndComments();
+		SkipSpace();
 
 		if (IsStructure || IsValue)
 			PopState();
@@ -375,9 +497,16 @@ public class Reader {
 
 	private bool HandleString()
 	{
+		int startPos = _position;
 		var result = ParseString();
 		if (!result.Success) {
-			PushError("Invalid string");
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
+		if (result.EndPosition >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
 			return false;
 		}
 
@@ -389,9 +518,15 @@ public class Reader {
 			return true;
 		}
 
-		SkipWhitespaceAndComments();
+		SkipSpace();
 
-		if (_position < _json.Length && _json[_position] == ':') {
+		if (_position >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
+
+		if (_json[_position] == ':') {
 			if (IsArray) {
 				if (!AllowKeyInArray) {
 					PushError("Unexpected key in array");
@@ -410,9 +545,18 @@ public class Reader {
 
 	private bool HandleNumber()
 	{
+		int startPos = _position;
 		var result = ParseNumber();
-		if (!result.Success)
+		if (!result.Success) {
+			if (_position >= _json.Length)
+				_tokenNotEnoughInput = true;
 			return false;
+		}
+		if (result.EndPosition >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
 
 		_stringValue = result.Text;
 		_numberValue = result.Value;
@@ -424,9 +568,18 @@ public class Reader {
 
 	private bool HandleSymbol()
 	{
+		int startPos = _position;
 		var result = ParseSymbol();
-		if (!result.Success)
+		if (!result.Success) {
+			if (_position >= _json.Length)
+				_tokenNotEnoughInput = true;
 			return false;
+		}
+		if (result.EndPosition >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
 
 		_stringValue = result.Value;
 		_position = result.EndPosition;
@@ -448,19 +601,32 @@ public class Reader {
 
 	private bool HandleUnquotedKey()
 	{
+		int startPos = _position;
 		var result = ParseSymbol();
-		if (!result.Success)
+		if (!result.Success) {
+			if (_position >= _json.Length)
+				_tokenNotEnoughInput = true;
 			return false;
+		}
+		if (result.EndPosition >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
 
 		_stringValue = result.Value;
-		int endPos = result.EndPosition;
+		_position = result.EndPosition;
 
-		int tempPos = endPos;
-		while (tempPos < _json.Length && char.IsWhiteSpace(_json[tempPos]))
-			tempPos++;
+		SkipSpace();
 
-		if (tempPos < _json.Length && _json[tempPos] == ':') {
-			_position = tempPos + 1;
+		if (_position >= _json.Length) {
+			_position = startPos;
+			_tokenNotEnoughInput = true;
+			return false;
+		}
+
+		if (_json[_position] == ':') {
+			_position++;
 			_key = _stringValue;
 			PushState(new StateItem(StateType.Key));
 			return true;
@@ -533,9 +699,10 @@ public class Reader {
 						return (false, string.Empty, start);
 
 					string hexString = _json.Substring(_position + 1, 4);
-					if (!int.TryParse(hexString, NumberStyles.HexNumber, null, out int codeUnit))
+					if (!int.TryParse(hexString, NumberStyles.HexNumber, null, out int codeUnit)) {
+						PushError("Invalid unicode escape");
 						return (false, string.Empty, start);
-
+					}
 					_position += 4;
 
 					if (codeUnit >= 0xD800 && codeUnit < 0xDC00) {
@@ -547,12 +714,15 @@ public class Reader {
 								int unicode = ((codeUnit - 0xD800) << 10) + (lowSurrogate - 0xDC00) + 0x10000;
 								sb.Append(char.ConvertFromUtf32(unicode));
 							} else {
+								PushError("Invalid surrogate pair");
 								return (false, string.Empty, start);
 							}
 						} else {
+							PushError("Unpaired high surrogate");
 							return (false, string.Empty, start);
 						}
 					} else if (codeUnit >= 0xDC00 && codeUnit < 0xE000) {
+						PushError("Unpaired low surrogate");
 						return (false, string.Empty, start);
 					} else {
 						sb.Append(char.ConvertFromUtf32(codeUnit));
@@ -661,19 +831,19 @@ public class Reader {
 		_errors.Add(new Error(message, offset, line, column));
 	}
 
-    public bool Match(string path, bool matchEndStructure = false)
-    {
-        if (!IsValue)
-            return false;
+	public bool Match(string path, bool matchEndStructure = false)
+	{
+		if (!IsValue)
+			return false;
 
-        if (!string.IsNullOrEmpty(path) && path[0] == '@') {
-            if (_depthStack.Count > 0) {
-                var item = _depthStack[^1];
-                path = item.Path + path.Substring(1);
-            }
-        }
+		if (!string.IsNullOrEmpty(path) && path[0] == '@') {
+			if (_depthStack.Count > 0) {
+				var item = _depthStack[^1];
+				path = item.Path + path.Substring(1);
+			}
+		}
 
-        int pathPos = 0;
+		int pathPos = 0;
 
 		char Path(int i) => i < path.Length ? path[i] : '\0';
 

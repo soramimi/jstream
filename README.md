@@ -63,6 +63,41 @@ int main() {
 }
 ```
 
+### Streaming Input
+
+`Reader` can parse JSON that arrives incrementally. Create a reader with an input callback, call `input()` to append chunks, and check `is_not_enough_input()` when parsing pauses mid-token.
+
+```cpp
+#include "jstream.h"
+#include <iostream>
+
+int main() {
+    std::string chunk1 = R"({"name": "Jo")";
+    std::string chunk2 = R"(hn", "age": 30})";
+
+    jstream::Reader reader;
+    reader.input(chunk1);
+    reader.input(chunk2);
+
+    while (reader.next()) {
+        if (reader.match("{name") && reader.isstring()) {
+            std::cout << "Name: " << reader.string() << std::endl;
+        } else if (reader.match("{age") && reader.isnumber()) {
+            std::cout << "Age: " << reader.number() << std::endl;
+        }
+    }
+}
+```
+
+For callback-driven streaming:
+
+```cpp
+jstream::Reader reader([&](){ reader.input(get_next_chunk()); });
+while (reader.next()) { /* ... */ }
+```
+
+When a stream contains multiple top-level JSON documents, parse the first document, call `next_document()` to clear the `EndDocument` state, and continue parsing.
+
 ### Generating JSON
 
 ```cpp
@@ -200,8 +235,9 @@ Useful predicates and accessors on `Reader`:
 
 - `state()` - Current state (`StateType`)
 - `is_constant()`, `is_structure()`, `is_value()` - Classify the current state
-- `is_start_object()`, `is_end_object()`, `is_start_array()`, `is_end_array()`
+- `is_start_object()`, `is_end_object()`, `is_start_array()`, `is_end_array()`, `is_end_document()`
 - `isnull()`, `isboolean()`, `isnumber()`, `isstring()`
+- `is_not_enough_input()` - True when parsing paused because the buffer ended mid-token (streaming mode)
 - `key()`, `string()`, `number()`, `boolean()`
 - `path()`, `depth()`, `tell()`
 - `extract()` - Raw text of the last parsed element

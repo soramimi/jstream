@@ -126,42 +126,14 @@ Keep API names aligned by converting C++ snake_case to C# PascalCase (e.g. `allo
 
 ## Pending Ports (Planned for C# and Go)
 
-The following features were recently added to the C++ version and are **not yet ported** to C# and Go. They are planned for future synchronization.
+There are currently no pending ports. The features below were previously added to the C++ version and have already been synchronized to C# and Go.
 
-### 1. Streaming Input Mode
+### Ported Features
 
-Commit: `e59bb26`
-
-- `Reader(std::function<void()> callback)` constructor: invokes the callback when more input is needed.
-- `input(std::string_view)` method: appends incremental input to the internal buffer.
-- `is_not_enough_input()` method: returns `true` when parsing was interrupted because the buffer ended mid-token.
-
-**Porting notes:**
-- **C#**: Add a constructor taking `Action`, an `Input(string)` method, and an `IsNotEnoughInput` property.
-- **Go**: Add a constructor taking `func()`, an `Input(string)` method, and an `IsNotEnoughInput()` method.
-
-### 2. Comment-aware Whitespace Skipping in Streaming Mode
-
-Commit: `086a40b`
-
-- Replaced `scan_space()` with `skip_space()`, which returns `bool` and correctly skips `//` and `/* */` comments even when the comment spans across buffer boundaries during streaming input.
-
-**Porting notes:**
-- **C# / Go**: Implement a `SkipSpace()` (or `skipSpace()`) helper that mirrors the C++ logic, handling comment state across incremental `input()` calls when `AllowComment` is enabled.
-
-### 3. Multi-Document Support
-
-Commit: `e712d6c`
-
-- Added `StateType::EndDocument` state, emitted when a top-level JSON object/array closes and the parser reaches depth 0.
-- Added `next_document()` method: clears the `EndDocument` state so the same `Reader` can parse the next JSON document from the same stream.
-
-**Porting notes:**
-- **C# / Go**: Add `EndDocument` to `StateType`, add `NextDocument()` to `Reader`, and update `Next()` to return `true` when `EndDocument` is reached in streaming mode (unless input is insufficient).
-
-### 4. Test Coverage
-
-- C++ tests are in `test/test5.cpp`. When porting, add equivalent streaming / multi-document tests to `JStream.Tests/` (C#) and `reader_test.go` (Go).
+- **Streaming Input Mode** (`Reader` callback constructor, `Input()`, `IsNotEnoughInput`)
+- **Comment-aware Whitespace Skipping** in streaming mode (`SkipSpace()` / `skipSpace()`)
+- **Multi-Document Support** (`EndDocument` / `StateEndDocument`, `NextDocument()`)
+- **Streaming / Multi-Document Test Coverage** (`Streaming5_Test` in C#, `TestStreaming5` in Go)
 
 ## Common Pitfalls
 

@@ -60,6 +60,33 @@ func main() {
 }
 ```
 
+### Streaming Input
+
+For incremental or callback-driven parsing, create a reader with an input callback or feed chunks via `Input()`:
+
+```go
+// Callback-driven streaming
+offset := 0
+reader := jstream.NewReaderWithCallback(func() {
+    if offset < len(json) {
+        reader.Input(json[offset : offset+1])
+        offset++
+    }
+})
+
+// Or push chunks manually
+reader := jstream.NewReader("")
+reader.Input(`{"name": "Jo`)
+reader.Input(`hn"}`)
+```
+
+In streaming mode:
+
+- `IsNotEnoughInput()` reports when parsing paused because a token was split across chunks.
+- `Input()` resets the not-enough-input flag and appends the new chunk to the remaining buffer.
+- `Extract()` and `ExtractRange()` are disabled in streaming mode and will record an error.
+- When a top-level object or array completes, the reader enters `StateEndDocument`. Call `NextDocument()` to continue parsing the next JSON document from the same stream.
+
 ### Generating JSON
 
 ```go
@@ -203,6 +230,9 @@ Useful predicates and accessors on `Reader`:
 - `Key()`, `StringValue()`, `Number()`, `BooleanValue()`
 - `Path()`, `Depth()`, `Tell()`
 - `Extract()` - Raw text of the last parsed element
+- `StateEndDocument` - Emitted when a top-level object/array closes in streaming mode
+- `IsNotEnoughInput()` - True when parsing paused for more input in streaming mode
+- `NextDocument()` - Clear `StateEndDocument` to parse the next document from the stream
 
 ## Building and Testing
 

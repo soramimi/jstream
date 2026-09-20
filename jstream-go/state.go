@@ -16,6 +16,7 @@ const (
 	StateEndObject             = 103
 	StateStartArray            = 104
 	StateEndArray              = 105
-	StateString                = 106
-	StateNumber                = 107
+	StateEndDocument           = 106
+	StateString                = 107
+	StateNumber                = 108
 )

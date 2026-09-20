@@ -145,3 +145,286 @@ func TestReaderAtRelativePath(t *testing.T) {
 		t.Errorf("values[1] = %v, want 456", values[1])
 	}
 }
+
+type parsedData struct {
+	name    string
+	age     float64
+	city    string
+	street  string
+	zip     string
+}
+
+func TestStreaming0(t *testing.T) {
+	json1 := "\n{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"city\": \"New Yo"
+	json2 := `rk",
+		"address": {
+			"street": "123 Main St",
+			"zip": "10001"
+		}
+}
+`
+	var parsed parsedData
+	reader := NewReader("")
+	reader.Input(json1)
+	reader.Input(json2)
+	for reader.Next() {
+		if reader.Match("{name") && reader.IsString() {
+			parsed.name = reader.StringValue()
+		} else if reader.Match("{age") && reader.IsNumber() {
+			parsed.age = reader.Number()
+		} else if reader.Match("{city") && reader.IsString() {
+			parsed.city = reader.StringValue()
+		} else if reader.Match("{address{street") && reader.IsString() {
+			parsed.street = reader.StringValue()
+		} else if reader.Match("{address{zip") && reader.IsString() {
+			parsed.zip = reader.StringValue()
+		}
+	}
+	if parsed.name != "John" {
+		t.Errorf("name = %q, want John", parsed.name)
+	}
+	if parsed.age != 30 {
+		t.Errorf("age = %v, want 30", parsed.age)
+	}
+	if parsed.city != "New York" {
+		t.Errorf("city = %q, want New York", parsed.city)
+	}
+	if parsed.street != "123 Main St" {
+		t.Errorf("street = %q, want 123 Main St", parsed.street)
+	}
+	if parsed.zip != "10001" {
+		t.Errorf("zip = %q, want 10001", parsed.zip)
+	}
+}
+
+func TestStreaming1(t *testing.T) {
+	json := "\n{\n\t\"name\": \"John\",\n\t\"age\": 3"
+	var parsed parsedData
+	reader := NewReader("")
+	reader.Input(json)
+	for reader.Next() {
+		if reader.Match("{name") && reader.IsString() {
+			parsed.name = reader.StringValue()
+		} else if reader.Match("{age") && reader.IsNumber() {
+			parsed.age = reader.Number()
+		} else if reader.Match("{city") && reader.IsString() {
+			parsed.city = reader.StringValue()
+		}
+	}
+	if parsed.name != "John" {
+		t.Errorf("name = %q, want John", parsed.name)
+	}
+	if parsed.age != 0 {
+		t.Errorf("age = %v, want 0", parsed.age)
+	}
+	if !reader.IsNotEnoughInput() {
+		t.Error("expected IsNotEnoughInput to be true")
+	}
+}
+
+func TestStreaming2(t *testing.T) {
+	json := "\n{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"city\": \"New Yo"
+	var parsed parsedData
+	reader := NewReader("")
+	reader.Input(json)
+	for reader.Next() {
+		if reader.Match("{name") && reader.IsString() {
+			parsed.name = reader.StringValue()
+		} else if reader.Match("{age") && reader.IsNumber() {
+			parsed.age = reader.Number()
+		} else if reader.Match("{city") && reader.IsString() {
+			parsed.city = reader.StringValue()
+		}
+	}
+	if parsed.name != "John" {
+		t.Errorf("name = %q, want John", parsed.name)
+	}
+	if parsed.age != 30 {
+		t.Errorf("age = %v, want 30", parsed.age)
+	}
+	if parsed.city != "" {
+		t.Errorf("city = %q, want empty", parsed.city)
+	}
+	if !reader.IsNotEnoughInput() {
+		t.Error("expected IsNotEnoughInput to be true")
+	}
+}
+
+func TestStreaming3(t *testing.T) {
+	json := "\n{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"city\": \"New York\",\n\t\"address\": {\n\t\t\"street\": \"123 Main St\",\n\t\t\"zip\": \"10001\"\n\t}\n}\n"
+	var parsed parsedData
+	offset := 0
+	var reader *Reader
+	reader = NewReaderWithCallback(func() {
+		if offset < len(json) {
+			reader.Input(json[offset : offset+1])
+			offset++
+		}
+	})
+	for reader.Next() {
+		if reader.Match("{name") && reader.IsString() {
+			parsed.name = reader.StringValue()
+		} else if reader.Match("{age") && reader.IsNumber() {
+			parsed.age = reader.Number()
+		} else if reader.Match("{city") && reader.IsString() {
+			parsed.city = reader.StringValue()
+		} else if reader.Match("{address{street") && reader.IsString() {
+			parsed.street = reader.StringValue()
+		} else if reader.Match("{address{zip") && reader.IsString() {
+			parsed.zip = reader.StringValue()
+		}
+	}
+	if parsed.name != "John" {
+		t.Errorf("name = %q, want John", parsed.name)
+	}
+	if parsed.age != 30 {
+		t.Errorf("age = %v, want 30", parsed.age)
+	}
+	if parsed.city != "New York" {
+		t.Errorf("city = %q, want New York", parsed.city)
+	}
+	if parsed.street != "123 Main St" {
+		t.Errorf("street = %q, want 123 Main St", parsed.street)
+	}
+	if parsed.zip != "10001" {
+		t.Errorf("zip = %q, want 10001", parsed.zip)
+	}
+}
+
+func TestStreaming4(t *testing.T) {
+	json := "\n{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"city\": \"New York\", // comment1\n\t\"address\": {\n\t\t\"street\": \"123 Main St\", /* comment2 */\n\t\t\"zip\": \"10001\"\n\t}\n}\n"
+	var parsed parsedData
+	offset := 0
+	var reader *Reader
+	reader = NewReaderWithCallback(func() {
+		if offset < len(json) {
+			reader.Input(json[offset : offset+1])
+			offset++
+		}
+	})
+	reader.AllowComment = true
+	for reader.Next() {
+		if reader.Match("{name") && reader.IsString() {
+			parsed.name = reader.StringValue()
+		} else if reader.Match("{age") && reader.IsNumber() {
+			parsed.age = reader.Number()
+		} else if reader.Match("{city") && reader.IsString() {
+			parsed.city = reader.StringValue()
+		} else if reader.Match("{address{street") && reader.IsString() {
+			parsed.street = reader.StringValue()
+		} else if reader.Match("{address{zip") && reader.IsString() {
+			parsed.zip = reader.StringValue()
+		}
+	}
+	if parsed.name != "John" {
+		t.Errorf("name = %q, want John", parsed.name)
+	}
+	if parsed.age != 30 {
+		t.Errorf("age = %v, want 30", parsed.age)
+	}
+	if parsed.city != "New York" {
+		t.Errorf("city = %q, want New York", parsed.city)
+	}
+	if parsed.street != "123 Main St" {
+		t.Errorf("street = %q, want 123 Main St", parsed.street)
+	}
+	if parsed.zip != "10001" {
+		t.Errorf("zip = %q, want 10001", parsed.zip)
+	}
+}
+
+func TestStreaming5(t *testing.T) {
+	json := "\n{\n\t\"name\": \"John\",\n\t\"age\": 30,\n\t\"city\": \"New York\"\n}\n\n{\n\t\"name\": \"Alice\",\n\t\"age\": 10,\n\t\"city\": \"Wonderland\"\n}\n"
+	var parsed parsedData
+	offset := 0
+	var reader *Reader
+	reader = NewReaderWithCallback(func() {
+		if offset < len(json) {
+			reader.Input(json[offset : offset+1])
+			offset++
+		}
+	})
+
+	parse := func() {
+		for reader.Next() {
+			if reader.Match("{name") && reader.IsString() {
+				parsed.name = reader.StringValue()
+			} else if reader.Match("{age") && reader.IsNumber() {
+				parsed.age = reader.Number()
+			} else if reader.Match("{city") && reader.IsString() {
+				parsed.city = reader.StringValue()
+			}
+		}
+	}
+
+	parse()
+	if parsed.name != "John" {
+		t.Errorf("first name = %q, want John", parsed.name)
+	}
+	if parsed.age != 30 {
+		t.Errorf("first age = %v, want 30", parsed.age)
+	}
+	if parsed.city != "New York" {
+		t.Errorf("first city = %q, want New York", parsed.city)
+	}
+
+	reader.NextDocument()
+
+	parse()
+	if parsed.name != "Alice" {
+		t.Errorf("second name = %q, want Alice", parsed.name)
+	}
+	if parsed.age != 10 {
+		t.Errorf("second age = %v, want 10", parsed.age)
+	}
+	if parsed.city != "Wonderland" {
+		t.Errorf("second city = %q, want Wonderland", parsed.city)
+	}
+}
+
+func TestStreamingCommentSpanChunks(t *testing.T) {
+	// Block comment split across two input() calls.
+	{
+		reader := NewReader("")
+		reader.AllowComment = true
+		reader.Input(`{"a": /* comm`)
+		reader.Input(`ent */ 1}`)
+		a := 0.0
+		for reader.Next() {
+			if reader.Match("{a") && reader.IsNumber() {
+				a = reader.Number()
+			}
+		}
+		if a != 1 {
+			t.Errorf("a = %v, want 1", a)
+		}
+		if reader.HasError() {
+			t.Errorf("unexpected error: %v", reader.Errors())
+		}
+	}
+
+	// Line comment split across two input() calls.
+	{
+		reader := NewReader("")
+		reader.AllowComment = true
+		reader.Input("{\"a\": 1 // first lin")
+		reader.Input("e\n,\"b\":2}\n")
+		a, b := 0.0, 0.0
+		for reader.Next() {
+			if reader.Match("{a") && reader.IsNumber() {
+				a = reader.Number()
+			} else if reader.Match("{b") && reader.IsNumber() {
+				b = reader.Number()
+			}
+		}
+		if a != 1 {
+			t.Errorf("a = %v, want 1", a)
+		}
+		if b != 2 {
+			t.Errorf("b = %v, want 2", b)
+		}
+		if reader.HasError() {
+			t.Errorf("unexpected error: %v", reader.Errors())
+		}
+	}
+}

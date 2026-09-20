@@ -13,4 +13,5 @@ public enum StateType {
 	EndArray,
 	String,
 	Number,
+	EndDocument,
 }
