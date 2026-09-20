@@ -363,3 +363,53 @@ TEST(Json, MalformedNumbers)
 	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1e-10})"), 1e-10);
 	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1.5e3})"), 1.5e3);
 }
+
+TEST(Json, UnquotedKeyWithWhitespace)
+{
+	jstream::Reader reader("{key   : 1, another\t\t:\t\"two\"}");
+	reader.allow_unquoted_key(true);
+	int one = 0;
+	std::string two;
+	while (reader.next()) {
+		if (reader.match("{key") && reader.isnumber()) {
+			one = (int)reader.number();
+		} else if (reader.match("{another") && reader.isstring()) {
+			two = reader.string();
+		}
+	}
+	EXPECT_EQ(one, 1);
+	EXPECT_EQ(two, "two");
+	EXPECT_FALSE(reader.has_error());
+}
+
+TEST(Json, HexadecimalOverflow)
+{
+	{
+		jstream::Reader reader(R"({"a": 0xFFFFFFFFFFFFFFFFFFFFFF})");
+		reader.allow_hexadecimal(true);
+		while (reader.next()) { }
+		EXPECT_TRUE(reader.has_error());
+	}
+	{
+		jstream::Reader reader(R"({"a": 0x7FFFFFFFFFFFFFFF})");
+		reader.allow_hexadecimal(true);
+		double value = 0;
+		while (reader.next()) {
+			if (reader.match("{a") && reader.isnumber()) {
+				value = reader.number();
+			}
+		}
+		EXPECT_FALSE(reader.has_error());
+		EXPECT_DOUBLE_EQ(value, static_cast<double>(LLONG_MAX));
+	}
+}
+
+TEST(Json, ObjectDuplicateKey)
+{
+	jstream::Variant root;
+	auto obj = jstream::obj(root);
+	obj["a"] = 1.0;
+	obj["a"] = 2.0;
+	EXPECT_EQ(obj.size(), 1u);
+	EXPECT_DOUBLE_EQ(jstream::get<double>(obj.value("a")), 2.0);
+}

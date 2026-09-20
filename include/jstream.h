@@ -8,6 +8,7 @@
 #include <cassert>
 #include <cctype>
 #include <charconv>
+#include <climits>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -485,6 +486,10 @@ private:
 						if (c >= '0' && c <= '9') digit = c - '0';
 						else if (c >= 'a' && c <= 'f') digit = c - 'a' + 10;
 						else if (c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+						if (v > (LLONG_MAX - digit) / 16) {
+							push_error("hexadecimal integer overflow");
+							return 0;
+						}
 						v = v * 16 + digit;
 					}
 					*out = double(sign ? -v : v);
@@ -960,22 +965,23 @@ private:
 						}
 					}
 				}
-			} else if (d.allow_unquoted_key) {
-				auto n = parse_symbol(d.ptr, d.end, &d.string);
-				if (n == 0 || d.ptr + n == d.end) {
-					not_enough_input = true;
-					break;
-				}
-				if (n > 0) {
-					skip_space();
-					if (d.ptr[n] == ':') {
-						d.ptr += n + 1;
-						d.key = d.string;
-						push_state(Key);
-						return true;
-					}
+		} else if (d.allow_unquoted_key) {
+			auto n = parse_symbol(d.ptr, d.end, &d.string);
+			if (n == 0 || d.ptr + n == d.end) {
+				not_enough_input = true;
+				break;
+			}
+			if (n > 0) {
+				d.ptr += n;
+				skip_space();
+				if (d.ptr < d.end && *d.ptr == ':') {
+					d.ptr++;
+					d.key = d.string;
+					push_state(Key);
+					return true;
 				}
 			}
+		}
 			if (!has_error()) {
 				push_error("syntax error");
 			}
@@ -1843,6 +1849,9 @@ struct Object {
 	}
 	VariantRef operator [] (std::string const &key)
 	{
+		if (Variant *v = find(key)) {
+			return VariantRef(*v);
+		}
 		p->emplace_back(key, Variant());
 		return p->back().value;
 	}
