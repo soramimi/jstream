@@ -24,4 +24,7 @@ SOURCES += \
     test5.cpp
 
 DISTFILES += \
-	../README.md
+	../README.md \
+	../README_CSharp.md \
+	../README_Go.md \
+	../README_ja.md

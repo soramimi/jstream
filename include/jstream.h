@@ -114,166 +114,159 @@ static std::vector<char> encode_json_string(std::string_view in)
 	return ret;
 }
 
-namespace detail {
+/**
+ * @brief Return 10 raised to an integer power.
+ *
+ * A small lookup table is used for the most common range to avoid
+ * calling the comparatively expensive `pow()` routine.  Values outside
+ * the table range fall back to `pow(10.0, exp)`.
+ *
+ * @param exp Decimal exponent (positive or negative).
+ * @return The value 10^exp as a double.
+ */
+static double pow10_int(int exp)
+{
+	// Pre‑computed powers for |exp| ≤ 16
+	static const double tbl[] = {
+		1e+00, 1e+01, 1e+02, 1e+03, 1e+04, 1e+05, 1e+06,
+		1e+07, 1e+08, 1e+09, 1e+10, 1e+11, 1e+12, 1e+13,
+		1e+14, 1e+15, 1e+16
+	};
+	if (exp >= 0 && exp < static_cast<int>(sizeof tbl / sizeof *tbl))
+		return tbl[exp];
+	if (exp <= 0 && exp > -static_cast<int>(sizeof tbl / sizeof *tbl))
+		return 1.0 / tbl[-exp];
+	// Rare case: delegate to libm
+	return std::pow(10.0, exp);
+}
 
-class misc {
-private:
-	/**
-	 * @brief Return 10 raised to an integer power.
-	 *
-	 * A small lookup table is used for the most common range to avoid
-	 * calling the comparatively expensive `pow()` routine.  Values outside
-	 * the table range fall back to `pow(10.0, exp)`.
-	 *
-	 * @param exp Decimal exponent (positive or negative).
-	 * @return The value 10^exp as a double.
-	 */
-	static double pow10_int(int exp)
-	{
-		// Pre‑computed powers for |exp| ≤ 16
-		static const double tbl[] = {
-			1e+00, 1e+01, 1e+02, 1e+03, 1e+04, 1e+05, 1e+06,
-			1e+07, 1e+08, 1e+09, 1e+10, 1e+11, 1e+12, 1e+13,
-			1e+14, 1e+15, 1e+16
-		};
-		if (exp >= 0 && exp < static_cast<int>(sizeof tbl / sizeof *tbl))
-			return tbl[exp];
-		if (exp <= 0 && exp > -static_cast<int>(sizeof tbl / sizeof *tbl))
-			return 1.0 / tbl[-exp];
-		// Rare case: delegate to libm
-		return std::pow(10.0, exp);
+/**
+ * @brief Locale‑independent `strtod` clone.
+ *
+ * Parses a floating‑point literal from a C‑string.  Leading white‑space,
+ * an optional sign, fractional part (with a mandatory '.' as the decimal
+ * separator), and an optional exponent (`e`/`E`) are recognised.
+ *
+ * The implementation **ignores the current locale**; the decimal point
+ * must be `'.'` and no thousands separators are accepted.
+ *
+ * @param nptr   Pointer to NUL‑terminated text to parse.
+ * @param endptr If non‑NULL, receives a pointer to the first character
+ *               following the parsed number (or `nptr` on failure).
+ * @return The parsed value.
+ */
+static double my_strtod(const char *nptr, char **endptr)
+{
+	const char *s = nptr;
+	bool sign = false;
+	bool saw_digit = false;
+	int frac_digits = 0;
+	long exp_val = 0;
+	bool exp_sign = false;
+	double value = 0.0;
+	
+	// Skip leading white‑space
+	while (std::isspace(static_cast<unsigned char>(*s))) ++s;
+	
+	// Parse optional sign
+	if (*s == '+' || *s == '-') {
+		if (*s == '-') sign = true;
+		s++;
 	}
-public:
-	/**
-	 * @brief Locale‑independent `strtod` clone.
-	 *
-	 * Parses a floating‑point literal from a C‑string.  Leading white‑space,
-	 * an optional sign, fractional part (with a mandatory '.' as the decimal
-	 * separator), and an optional exponent (`e`/`E`) are recognised.
-	 *
-	 * The implementation **ignores the current locale**; the decimal point
-	 * must be `'.'` and no thousands separators are accepted.
-	 *
-	 * @param nptr   Pointer to NUL‑terminated text to parse.
-	 * @param endptr If non‑NULL, receives a pointer to the first character
-	 *               following the parsed number (or `nptr` on failure).
-	 * @return The parsed value.
-	 */
-	static double my_strtod(const char *nptr, char **endptr)
-	{
-		const char *s = nptr;
-		bool sign = false;
-		bool saw_digit = false;
-		int frac_digits = 0;
-		long exp_val = 0;
-		bool exp_sign = false;
-		double value = 0.0;
-
-		// Skip leading white‑space
-		while (std::isspace(static_cast<unsigned char>(*s))) ++s;
-
-		// Parse optional sign
-		if (*s == '+' || *s == '-') {
-			if (*s == '-') sign = true;
-			s++;
-		}
-
-		// Integer part
+	
+	// Integer part
+	while (std::isdigit(static_cast<unsigned char>(*s))) {
+		saw_digit = true;
+		value = value * 10.0 + (*s - '0');
+		s++;
+	}
+	
+	// Fractional part
+	if (*s == '.') {
+		s++;
 		while (std::isdigit(static_cast<unsigned char>(*s))) {
 			saw_digit = true;
 			value = value * 10.0 + (*s - '0');
 			s++;
+			frac_digits++;
 		}
-
-		// Fractional part
-		if (*s == '.') {
+	}
+	
+	// No digits at all -> conversion failure
+	if (!saw_digit) {
+		if (endptr) *endptr = const_cast<char *>(nptr);
+		return 0.0;
+	}
+	
+	// Exponent part
+	if (*s == 'e' || *s == 'E') {
+		s++;
+		const char *exp_start = s;
+		if (*s == '+' || *s == '-') {
+			if (*s == '-') exp_sign = true;
 			s++;
+		}
+		if (std::isdigit(static_cast<unsigned char>(*s))) {
 			while (std::isdigit(static_cast<unsigned char>(*s))) {
-				saw_digit = true;
-				value = value * 10.0 + (*s - '0');
-				s++;
-				frac_digits++;
-			}
-		}
-
-		// No digits at all -> conversion failure
-		if (!saw_digit) {
-			if (endptr) *endptr = const_cast<char *>(nptr);
-			return 0.0;
-		}
-
-		// Exponent part
-		if (*s == 'e' || *s == 'E') {
-			s++;
-			const char *exp_start = s;
-			if (*s == '+' || *s == '-') {
-				if (*s == '-') exp_sign = true;
+				exp_val = exp_val * 10 + (*s - '0');
 				s++;
 			}
-			if (std::isdigit(static_cast<unsigned char>(*s))) {
-				while (std::isdigit(static_cast<unsigned char>(*s))) {
-					exp_val = exp_val * 10 + (*s - '0');
-					s++;
-				}
-				if (exp_sign) {
-					exp_val = -exp_val;
-				}
-			} else {
-				// Roll back if 'e' is not followed by a valid exponent
-				s = exp_start - 1;
+			if (exp_sign) {
+				exp_val = -exp_val;
 			}
+		} else {
+			// Roll back if 'e' is not followed by a valid exponent
+			s = exp_start - 1;
 		}
-
-		// Scale by 10^(exponent − #fractional‑digits)
-		int total_exp = exp_val - frac_digits;
-		if (total_exp != 0) {
-			value *= pow10_int(total_exp);
-		}
-
-		// Apply sign
-		if (sign) {
-			value = -value;
-		}
-
-		// Set errno on overflow/underflow
-		if (!std::isfinite(value)) {
-			// errno = ERANGE;
-			value = sign ? -HUGE_VAL : HUGE_VAL;
-		} else if (value == 0.0 && saw_digit && total_exp != 0) {
-			// errno = ERANGE;  // underflow
-		}
-
-		// Report where parsing stopped
-		if (endptr) *endptr = const_cast<char *>(s);
-		return value;
 	}
-
-	static std::string format_double(double val, bool allow_nan)
-	{
-		if (std::isnan(val)) {
-			if (allow_nan) {
-				return "NaN";
-			}
-			return {};
-		}
-		if (std::isinf(val)) {
-			if (allow_nan) {
-				return std::signbit(val) ? "-Infinity" : "Infinity";
-			}
-			return {};
-		}
-
-		// std::to_chars produces the shortest round-trip representation without locale dependency
-		char buf[32];
-		auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val);
-		if (ec != std::errc{}) {
-			return {};
-		}
-		return std::string(buf, ptr);
+	
+	// Scale by 10^(exponent − #fractional‑digits)
+	int total_exp = exp_val - frac_digits;
+	if (total_exp != 0) {
+		value *= pow10_int(total_exp);
 	}
-};
+	
+	// Apply sign
+	if (sign) {
+		value = -value;
+	}
+	
+	// Set errno on overflow/underflow
+	if (!std::isfinite(value)) {
+		// errno = ERANGE;
+		value = sign ? -HUGE_VAL : HUGE_VAL;
+	} else if (value == 0.0 && saw_digit && total_exp != 0) {
+		// errno = ERANGE;  // underflow
+	}
+	
+	// Report where parsing stopped
+	if (endptr) *endptr = const_cast<char *>(s);
+	return value;
+}
 
-} // namespace detail
+static std::string format_double(double val, bool allow_nan)
+{
+	if (std::isnan(val)) {
+		if (allow_nan) {
+			return "NaN";
+		}
+		return {};
+	}
+	if (std::isinf(val)) {
+		if (allow_nan) {
+			return std::signbit(val) ? "-Infinity" : "Infinity";
+		}
+		return {};
+	}
+	
+	// std::to_chars produces the shortest round-trip representation without locale dependency
+	char buf[32];
+	auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf), val);
+	if (ec != std::errc{}) {
+		return {};
+	}
+	return std::string(buf, ptr);
+}
 
 enum StateType {
 	// Symbols
@@ -497,7 +490,7 @@ private:
 		// Fallback: copy to a null-terminated buffer for locale-independent strtod.
 		std::vector<char> vec(start, ptr);
 		vec.push_back(0);
-		*out = detail::misc::my_strtod(vec.data(), nullptr);
+		*out = my_strtod(vec.data(), nullptr);
 
 		return int(ptr - begin);
 	}
@@ -641,6 +634,7 @@ private:
 		std::vector<NestItem> nest_stack;
 		StateItem last_state;
 		std::vector<Error> errors;
+		bool extraction_support = true;
 	};
 	ParserData d;
 
@@ -802,11 +796,7 @@ private:
 					push_state(Null);
 					return true;
 				}
-#if 0
-				d.ptr += scan_space(d.ptr, d.end);
-#else
 				skip_space();
-#endif
 				if (is_value()) {
 					pop_state();
 				}
@@ -861,11 +851,7 @@ private:
 				}
 				if (n > 0) {
 					d.ptr += n;
-#if 0
-					d.ptr += scan_space(d.ptr, d.end);
-#else
 					skip_space();
-#endif
 					if (state() == Key) {
 						//
 					} else {
@@ -936,11 +922,7 @@ private:
 					break;
 				}
 				if (n > 0) {
-#if 0
-					d.ptr += scan_space(d.ptr, d.end);
-#else
 					skip_space();
-#endif
 					if (d.ptr[n] == ':') {
 						d.ptr += n + 1;
 						d.key = d.string;
@@ -1008,28 +990,43 @@ public:
 	Reader(std::function<void ()> fn_input_calback)
 	{
 		d.fn_input_calback = fn_input_calback;
+		d.extraction_support = false;
 	}
 	
-	void input(std::string_view sv)
+	void input(std::string_view in)
 	{
-		if (sv.empty()) return;
+		if (in.empty()) return;
+		
+		static constexpr size_t EXTRA_ROOM = 200; // reserve extra room to avoid frequent reallocations
 		
 		d.not_enough_input = false;
+		d.extraction_support = false;
 		
-		std::vector<char> v;
-		size_t n = 0;
-		if (d.ptr && d.end) {
-			n = d.end - d.ptr;
-			if (n > 0) {
-				v.reserve(n + sv.size());
-				v.assign(d.ptr, d.end);
+		if (d.input_buffer && (d.input_buffer->capacity() - d.input_buffer->size()) >= in.size()) {
+			if (d.ptr && d.end && d.ptr == d.end) {
+				// all previous input has been consumed, reuse the buffer
+				d.input_buffer->assign(in.begin(), in.end());
+				d.begin = d.ptr = d.input_buffer->data();
+			} else {
+				// append new input to the existing buffer
+				d.input_buffer->insert(d.input_buffer->end(), in.begin(), in.end());
+				if (!d.begin) d.begin = d.input_buffer->data();
+				if (!d.ptr)   d.ptr = d.input_buffer->data();
 			}
+			d.end = d.input_buffer->data() + d.input_buffer->size();
+		} else {
+			std::vector<char> newbuf;
+			size_t curr = (d.ptr && d.end) ? (d.end - d.ptr) : 0;
+			newbuf.reserve(curr + in.size() + EXTRA_ROOM);
+			if (curr > 0) {
+				newbuf.assign(d.ptr, d.end); // copy remaining unprocessed data to the new buffer
+			}
+			newbuf.insert(newbuf.end(), in.begin(), in.end()); // append new input data
+			d.input_buffer = std::move(newbuf);
+			d.begin = d.input_buffer->data();
+			d.ptr = d.begin;
+			d.end = d.begin + d.input_buffer->size();
 		}
-		v.insert(v.end(), sv.begin(), sv.end());
-		d.input_buffer = std::move(v);
-		d.begin = d.input_buffer->data();
-		d.ptr = d.begin;
-		d.end = d.begin + d.input_buffer->size();
 	}
 	
 	void allow_comment(bool allow)
@@ -1047,12 +1044,6 @@ public:
 	void allow_hexadecimal(bool allow)
 	{
 		d.allow_hexadecimal = allow;
-	}
-
-	[[deprecated("use allow_hexadecimal instead")]]
-	void allow_hexadicimal(bool allow)
-	{
-		allow_hexadecimal(allow);
 	}
 	void allow_special_constant(bool allow)
 	{
@@ -1366,8 +1357,14 @@ public:
 	{
 		return (uintptr_t)d.ptr;
 	}
+	
 	std::string_view extract(uintptr_t begin, uintptr_t end)
 	{
+		if (!d.extraction_support) {
+			push_error("extract() is not supported in streaming input mode");
+			return {};
+		}
+		
 		if (begin >= (uintptr_t)d.begin && end <= (uintptr_t)d.end && begin <= end) {
 			return std::string_view((char *)begin, end - begin);
 		}
@@ -1429,7 +1426,7 @@ private:
 
 	bool print_number(double v)
 	{
-		std::string s = detail::misc::format_double(v, allow_nan_);
+		std::string s = format_double(v, allow_nan_);
 		if (s.empty()) {
 			print("null");
 			return false;
