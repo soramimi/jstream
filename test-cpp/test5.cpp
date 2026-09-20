@@ -153,7 +153,8 @@ TEST(Json, Streaming3)
 	
 	size_t offset = 0;
 	
-	jstream::Reader reader([&](){
+	jstream::Reader reader;
+	reader.parse([&](){
 		reader.input(std::string_view(json + offset, 1));
 		offset++;
 	});
@@ -203,7 +204,8 @@ TEST(Json, Streaming4)
 	
 	size_t offset = 0;
 	
-	jstream::Reader reader([&](){
+	jstream::Reader reader;
+	reader.parse([&](){
 		reader.input(std::string_view(json + offset, 1));
 		offset++;
 	});
@@ -256,7 +258,8 @@ TEST(Json, Streaming5)
 	
 	size_t offset = 0;
 	
-	jstream::Reader reader([&](){
+	jstream::Reader reader;
+	reader.parse([&](){
 		reader.input(std::string_view(json + offset, 1));
 		offset++;
 	});

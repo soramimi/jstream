@@ -225,7 +225,7 @@ Useful predicates and accessors on `Reader`:
 
 - `State()` - Current state (`StateType`)
 - `IsConstant()`, `IsStructure()`, `IsValue()` - Classify the current state (`IsValue = IsConstant || IsStructure`)
-- `IsStartObject()`, `IsEndObject()`, `IsStartArray()`, `IsEndArray()`
+- `IsStartObject()`, `IsEndObject()`, `IsStartArray()`, `IsEndArray()`, `IsEndDocument()`
 - `IsNull()`, `IsFalse()`, `IsTrue()`, `IsBoolean()`, `IsNumber()`, `IsString()`
 - `Key()`, `StringValue()`, `Number()`, `BooleanValue()`
 - `Path()`, `Depth()`, `Tell()`

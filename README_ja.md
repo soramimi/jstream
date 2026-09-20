@@ -63,6 +63,42 @@ int main() {
 }
 ```
 
+### ストリーミング入力
+
+`Reader` は逐次到着する JSON をパースできます。入力コールバックを使って Reader を作成し、`input()` でチャンクを追加し、トークンの途中でパースが停止した場合は `is_not_enough_input()` を確認します。
+
+```cpp
+#include "jstream.h"
+#include <iostream>
+
+int main() {
+    std::string chunk1 = R"({"name": "Jo")";
+    std::string chunk2 = R"(hn", "age": 30})";
+
+    jstream::Reader reader;
+    reader.input(chunk1);
+    reader.input(chunk2);
+
+    while (reader.next()) {
+        if (reader.match("{name") && reader.isstring()) {
+            std::cout << "Name: " << reader.string() << std::endl;
+        } else if (reader.match("{age") && reader.isnumber()) {
+            std::cout << "Age: " << reader.number() << std::endl;
+        }
+    }
+}
+```
+
+コールバック駆動のストリーミングでは、`parse()` を使ってコールバックを設定します:
+
+```cpp
+jstream::Reader reader;
+reader.parse([&](){ reader.input(get_next_chunk()); });
+while (reader.next()) { /* ... */ }
+```
+
+ストリームに複数のトップレベル JSON ドキュメントが含まれている場合、最初のドキュメントをパースし、`next_document()` を呼んで `EndDocument` 状態をクリアしてから、パースを続行します。
+
 ### JSON の生成
 
 ```cpp
@@ -202,8 +238,10 @@ reader.nest([&](){                    // ネストしたスコープに入る
 - `is_constant()`, `is_structure()`, `is_value()` - 現在の状態を分類
 - `is_start_object()`, `is_end_object()`, `is_start_array()`, `is_end_array()`
 - `isnull()`, `isboolean()`, `isnumber()`, `isstring()`
+- `is_end_document()`
 - `key()`, `string()`, `number()`, `boolean()`
 - `path()`, `depth()`, `tell()`
+- `is_not_enough_input()` - ストリーミングモードでバッファがトークンの途中で終わったためパースが一時停止した場合に true
 - `extract()` - 最後にパースされた要素の生テキスト
 
 ## ビルドとテスト
@@ -218,7 +256,7 @@ make
 単体テストは Google Test を使用します:
 
 ```bash
-cd test
+cd test-cpp
 make
 ./myapp
 ```

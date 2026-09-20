@@ -4,7 +4,7 @@ This file contains project-specific context for AI coding agents working on jstr
 
 ## Project Overview
 
-jstream is a lightweight, header-only JSON parser/generator library. It has two implementations:
+jstream is a lightweight, header-only JSON parser/generator library. It has three implementations:
 
 - **C++ version** (`include/jstream.h`): the primary implementation, written in C++17.
 - **C# version** (`jstream-cs/`): a port that follows the C++ API and behavior where idiomatically appropriate.
@@ -17,15 +17,16 @@ When modifying functionality, the C++ version is the source of truth. The C# and
 ```
 .
 ├── include/jstream.h      # C++ header-only library
-├── main.cpp               # C++ sample/entry point (uses test/test.cpp)
+├── main.cpp               # C++ quick-start sample
 ├── jstream.pro            # qmake project file for C++ sample
-├── test/                  # C++ unit tests using Google Test
-│   ├── testmain.cpp
+├── test-cpp/              # C++ unit tests using Google Test
+│   ├── main.cpp
 │   ├── test.h
-│   ├── test.cpp
-│   ├── test1.cpp ... test5.cpp
+│   ├── helper.h
+│   ├── helper.cpp
+│   ├── test0.cpp ... test5.cpp
 │   └── Makefile
-├── benchmark/             # C++ benchmark
+├── benchmark-cpp/         # C++ benchmark
 ├── jstream-cs/            # C# port
 │   ├── JStreamCSharp.sln
 │   ├── Makefile           # top-level build/test convenience targets
@@ -44,8 +45,7 @@ When modifying functionality, the C++ version is the source of truth. The C# and
 │   ├── reader_test.go
 │   ├── writer_test.go
 │   ├── example/
-│   ├── benchmark/
-│   └── README.md
+│   └── benchmark/
 ├── README.md              # C++ documentation
 ├── README_CSharp.md       # C# documentation
 ├── README_Go.md           # Go documentation
@@ -62,7 +62,7 @@ qmake jstream.pro
 make
 
 # Run C++ unit tests
-cd test
+cd test-cpp
 make
 ./myapp
 ```
@@ -115,12 +115,12 @@ make clean
 When adding or changing features:
 
 1. Implement the change in the C++ version first (`include/jstream.h`).
-2. Update C++ tests in `test/` as needed.
+2. Update C++ tests in `test-cpp/` as needed.
 3. Port the change to the C# version (`jstream-cs/JStream/`).
 4. Update C# tests and examples to match.
 5. Port the change to the Go version (`jstream-go/`).
 6. Update Go tests and examples to match.
-7. Update `README.md`, `README_CSharp.md`, `README_Go.md`, and `jstream-go/README.md`.
+7. Update `README.md`, `README_CSharp.md`, and `README_Go.md`.
 
 Keep API names aligned by converting C++ snake_case to C# PascalCase (e.g. `allow_comment` → `AllowComment`, `is_value` → `IsValue`) and to Go PascalCase (e.g. `allow_comment` → `AllowComment`, `is_value` → `IsValue`).
 
@@ -130,7 +130,7 @@ There are currently no pending ports. The features below were previously added t
 
 ### Ported Features
 
-- **Streaming Input Mode** (`Reader` callback constructor, `Input()`, `IsNotEnoughInput`)
+- **Streaming Input Mode** (`parse(...)` callback, `Input()`, `IsNotEnoughInput`)
 - **Comment-aware Whitespace Skipping** in streaming mode (`SkipSpace()` / `skipSpace()`)
 - **Multi-Document Support** (`EndDocument` / `StateEndDocument`, `NextDocument()`)
 - **Streaming / Multi-Document Test Coverage** (`Streaming5_Test` in C#, `TestStreaming5` in Go)

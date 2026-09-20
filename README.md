@@ -89,10 +89,11 @@ int main() {
 }
 ```
 
-For callback-driven streaming:
+For callback-driven streaming, set up the callback with `parse()`:
 
 ```cpp
-jstream::Reader reader([&](){ reader.input(get_next_chunk()); });
+jstream::Reader reader;
+reader.parse([&](){ reader.input(get_next_chunk()); });
 while (reader.next()) { /* ... */ }
 ```
 
@@ -254,7 +255,7 @@ make
 The unit tests use Google Test:
 
 ```bash
-cd test
+cd test-cpp
 make
 ./myapp
 ```

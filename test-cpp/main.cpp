@@ -30,7 +30,8 @@ void debug1()
 	
 	size_t offset = 0;
 	
-	jstream::Reader reader([&](){
+	jstream::Reader reader;
+	reader.parse([&](){
 		reader.input(std::string_view(json + offset, 1));
 		offset++;
 	});

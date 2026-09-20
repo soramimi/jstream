@@ -17,6 +17,7 @@ HEADERS += \
 SOURCES += \
     helper.cpp \
     main.cpp \
+    test0.cpp \
     test1.cpp \
     test2.cpp \
     test3.cpp \

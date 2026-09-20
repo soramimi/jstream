@@ -1038,8 +1038,9 @@ public:
 	Reader(Reader const &r) = delete;
 	Reader &operator=(Reader const &r) = delete;
 	
-	Reader(std::function<void ()> fn_input_calback)
+	void parse(std::function<void ()> fn_input_calback)
 	{
+		d = {};
 		d.fn_input_calback = fn_input_calback;
 		d.extraction_support = false;
 	}

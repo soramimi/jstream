@@ -308,7 +308,7 @@ The C# version is typically slower than the C++ version, which is expected for m
 ## Ports
 
 - **C++**: the original implementation in `include/jstream.h`. See `README.md`.
-- **Go**: `jstream-go/` directory. See `README_Go.md` (also `jstream-go/README.md`).
+- **Go**: `jstream-go/` directory. See `README_Go.md`.
 
 ## Differences from C++ Version
 
