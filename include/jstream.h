@@ -302,16 +302,21 @@ public:
 		std::string what() const { return what_; }
 	};
 private:
+	void need_input() const
+	{
+		if (d.fn_input_calback) {
+			d.fn_input_calback();
+		}
+	}
+	
 	int peek_next_char() const
 	{
 		if (d.ptr && d.end && d.ptr < d.end) {
 			return (unsigned char)*d.ptr;
 		}
-		if (d.fn_input_calback) {
-			d.fn_input_calback();
-			if (d.ptr && d.end && d.ptr < d.end) {
-				return (unsigned char)*d.ptr;
-			}
+		need_input();
+		if (d.ptr && d.end && d.ptr < d.end) {
+			return (unsigned char)*d.ptr;
 		}
 		return -1;
 	}
@@ -349,14 +354,44 @@ private:
 		return int(ptr - begin);
 	}
 	
-	void skip_space()
+	bool skip_space()
 	{
+		bool ret = false;
+		char comment = 0;
 		while (1) {
 			int c = peek_next_char();
 			if (c < 0) break;
-			if (!std::isspace(c)) break;
+			if (comment != 0) {
+				if (comment == '*') {
+					if (c == '/') {
+						comment = 0;
+					}
+				} else if (comment == '/') {
+					if (c == '\n' || c == '\r') {
+						comment = 0;
+					}
+				}
+			} else if (!std::isspace(c)) {
+				if (d.allow_comment && c == '/') {
+					if (d.ptr + 1 >= d.end) {
+						need_input();
+					}
+					if (d.ptr + 1 < d.end) {
+						char t = d.ptr[1];
+						if (t == '*' || t == '/') {
+							comment = t;
+							d.ptr += 2;
+							ret = true;
+							continue;
+						}
+					}
+				}
+				break;
+			}
 			d.ptr++;
+			ret = true;
 		}
+		return ret;
 	}
 
 	int parse_symbol(char const *begin, char const *end, std::string *out)
@@ -704,13 +739,9 @@ private:
 		bool not_enough_input = true;
 		while (d.ptr < d.end) {
 			not_enough_input = false;
-			{
-				auto n = scan_space(d.ptr, d.end);;
-				if (n > 0) {
-					d.ptr += n;
-					continue;
-				}
-			}
+			
+			if (skip_space()) continue;
+			
 			if (*d.ptr == '}') {
 				d.ptr++;
 				d.string.clear();
@@ -824,7 +855,11 @@ private:
 				}
 				if (n > 0) {
 					d.ptr += n;
+#if 0
 					d.ptr += scan_space(d.ptr, d.end);
+#else
+					skip_space();
+#endif
 					if (state() == Key) {
 						//
 					} else {
@@ -895,7 +930,11 @@ private:
 					break;
 				}
 				if (n > 0) {
-					n += scan_space(d.ptr + n, d.end);
+#if 0
+					d.ptr += scan_space(d.ptr, d.end);
+#else
+					skip_space();
+#endif
 					if (d.ptr[n] == ':') {
 						d.ptr += n + 1;
 						d.key = d.string;
@@ -1022,12 +1061,9 @@ public:
 	}
 	void nest()
 	{
-		int n = depth();
-		if (n < 1) return;
-		std::string at = path();
 		ParserData::NestItem item;
-		item.depth = n;
-		item.path = at;
+		item.depth = depth();
+		item.path = path();
 		d.nest_stack.push_back(item);
 	}
 	void nest(std::function<void ()> callback_fn)
@@ -1231,8 +1267,7 @@ public:
 	{
 		if (!is_value()) return false;
 		
-		std::string at = this->path();
-		
+		std::string at;
 		if (!path.empty() && path.front() == '@') {
 			if (!d.nest_stack.empty()) {
 				at = d.nest_stack.back().path + std::string(path.substr(1));

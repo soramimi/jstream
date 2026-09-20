@@ -142,3 +142,58 @@ TEST(Json, Streaming2)
 	EXPECT_EQ(parsed.address.street, "123 Main St");
 	EXPECT_EQ(parsed.address.zip, "10001");
 }
+
+TEST(Json, Streaming3)
+{
+	char const *json = R"---(
+{
+	"name": "John",
+	"age": 30,
+	"city": "New York", // comment1
+	"address": {
+		"street": "123 Main St", /* comment2 */
+		"zip": "10001"
+	}
+}
+)---";
+	
+	struct ParsedData {
+		std::string name;
+		int age = 0;
+		std::string city;
+		struct Address {
+			std::string street;
+			std::string zip;
+		} address;
+	} parsed;
+	
+	size_t offset = 0;
+	
+	jstream::Reader reader([&](){
+		reader.input(std::string_view(json + offset, 1));
+		offset++;
+	});
+	reader.allow_comment(true);
+	while (1) {
+		if (!reader.next()) {
+			if (reader.is_not_enough_input()) break;
+			continue;
+		}
+		if (reader.match("{name")) {
+			parsed.name = reader.string();
+		} else if (reader.match("{age")) {
+			parsed.age = reader.number();
+		} else if (reader.match("{city")) {
+			parsed.city = reader.string();
+		} else if (reader.match("{address{street")) {
+			parsed.address.street = reader.string();
+		} else if (reader.match("{address{zip")) {
+			parsed.address.zip = reader.string();
+		}
+	}
+	EXPECT_EQ(parsed.name, "John");
+	EXPECT_EQ(parsed.age, 30);
+	EXPECT_EQ(parsed.city, "New York");
+	EXPECT_EQ(parsed.address.street, "123 Main St");
+	EXPECT_EQ(parsed.address.zip, "10001");
+}
