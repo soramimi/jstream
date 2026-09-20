@@ -239,50 +239,50 @@ func perform() {
 									chg.Bar = reader.StringValue()
 								}
 							})
-								his.Changes = append(his.Changes, chg)
-							}
-				})
-				data.History = append(data.History, his)
-			} else if reader.Match("{data[{user{profile{bio") {
-				data.User.Profile.Bio = reader.StringValue()
-			} else if reader.Match("{data[{user{profile{links{homepage") {
-				data.User.Profile.Links.Homepage = reader.GetVariant()
-			} else if reader.Match("{data[{user{profile{links{social[*") {
-				var soc Social
-				reader.Nest(func() {
-					if reader.Match("{data[{user{profile{links{social[{type") {
-						soc.Type = reader.StringValue()
-					} else if reader.Match("{data[{user{profile{links{social[{url") {
-						soc.URL = reader.StringValue()
-					}
-				})
-				data.User.Profile.Links.Social = append(data.User.Profile.Links.Social, soc)
-			}
-		})
-		parsed.Data = append(parsed.Data, data)
-	} else if reader.Match("{misc{emptyObj") {
-		parsed.Misc.EmptyObj = jstream.NewObject()
-	} else if reader.Match("{misc{emptyArr") {
-		parsed.Misc.EmptyArr = jstream.NewArray()
-	} else if reader.Match("{misc{types{int") {
-		parsed.Misc.Types.Int = reader.Number()
-	} else if reader.Match("{misc{types{float") {
-		parsed.Misc.Types.Float = reader.Number()
-	} else if reader.Match("{misc{types{string") {
-		parsed.Misc.Types.String = reader.StringValue()
-	} else if reader.Match("{misc{types{boolean") {
-		parsed.Misc.Types.Boolean = reader.BooleanValue()
-	} else if reader.Match("{misc{types{null") {
-		parsed.Misc.Types.Null = reader.GetVariant()
-	} else if reader.Match("{misc{types{array[*") {
-		reader.Nest(func() {
-			if reader.IsValue() {
-				parsed.Misc.Types.Array = append(parsed.Misc.Types.Array, reader.Number())
-			}
-		})
-	} else if reader.Match("{misc{types{object{nested{again{why") {
-		parsed.Misc.Types.Object = reader.GetVariant()
-	}
+							his.Changes = append(his.Changes, chg)
+						}
+					})
+					data.History = append(data.History, his)
+				} else if reader.Match("{data[{user{profile{bio") {
+					data.User.Profile.Bio = reader.StringValue()
+				} else if reader.Match("{data[{user{profile{links{homepage") {
+					data.User.Profile.Links.Homepage = reader.GetVariant()
+				} else if reader.Match("{data[{user{profile{links{social[*") {
+					var soc Social
+					reader.Nest(func() {
+						if reader.Match("{data[{user{profile{links{social[{type") {
+							soc.Type = reader.StringValue()
+						} else if reader.Match("{data[{user{profile{links{social[{url") {
+							soc.URL = reader.StringValue()
+						}
+					})
+					data.User.Profile.Links.Social = append(data.User.Profile.Links.Social, soc)
+				}
+			})
+			parsed.Data = append(parsed.Data, data)
+		} else if reader.Match("{misc{emptyObj") {
+			parsed.Misc.EmptyObj = jstream.NewObject()
+		} else if reader.Match("{misc{emptyArr") {
+			parsed.Misc.EmptyArr = jstream.NewArray()
+		} else if reader.Match("{misc{types{int") {
+			parsed.Misc.Types.Int = reader.Number()
+		} else if reader.Match("{misc{types{float") {
+			parsed.Misc.Types.Float = reader.Number()
+		} else if reader.Match("{misc{types{string") {
+			parsed.Misc.Types.String = reader.StringValue()
+		} else if reader.Match("{misc{types{boolean") {
+			parsed.Misc.Types.Boolean = reader.BooleanValue()
+		} else if reader.Match("{misc{types{null") {
+			parsed.Misc.Types.Null = reader.GetVariant()
+		} else if reader.Match("{misc{types{array[*") {
+			reader.Nest(func() {
+				if reader.IsValue() {
+					parsed.Misc.Types.Array = append(parsed.Misc.Types.Array, reader.Number())
+				}
+			})
+		} else if reader.Match("{misc{types{object{nested{again{why") {
+			parsed.Misc.Types.Object = reader.GetVariant()
+		}
 	}
 
 	if validation {
@@ -381,7 +381,7 @@ func validate(parsed *ParsedData) {
 }
 
 func main() {
-	iterations := 10000
+	iterations := 100000
 	fmt.Printf("Parsing JSON %d times...\n", iterations)
 
 	start := time.Now()

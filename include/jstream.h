@@ -564,7 +564,11 @@ private:
 		bool allow_special_constant = false;
 		bool allow_key_in_array = false;
 		std::vector<std::string> depth;
-		std::vector<int> depth_stack;
+		struct NestItem {
+			int depth;
+			std::string path;
+		};
+		std::vector<NestItem> nest_stack;
 		StateItem last_state;
 		std::vector<Error> errors;
 	};
@@ -924,7 +928,13 @@ public:
 	}
 	void nest()
 	{
-		d.depth_stack.push_back(depth());
+		int n = depth();
+		if (n < 1) return;
+		std::string at = path();
+		ParserData::NestItem item;
+		item.depth = n;
+		item.path = at;
+		d.nest_stack.push_back(item);
 	}
 	void nest(std::function<void ()> callback_fn)
 	{
@@ -940,11 +950,11 @@ public:
 			return true;
 		}
 		if (_internal_next()) {
-			if (d.depth_stack.empty()) return true;
-			if (this->depth() >= d.depth_stack.back()) {
+			if (d.nest_stack.empty()) return true;
+			if (this->depth() >= d.nest_stack.back().depth) {
 				return true;
 			}
-			d.depth_stack.pop_back();
+			d.nest_stack.pop_back();
 			hold();
 		}
 		return false;
@@ -1121,7 +1131,16 @@ public:
 	bool match(std::string_view path, bool match_end_structure = false) const
 	{
 		if (!is_value()) return false;
-
+		
+		std::string at = this->path();
+		
+		if (!path.empty() && path.front() == '@') {
+			if (!d.nest_stack.empty()) {
+				at = d.nest_stack.back().path + std::string(path.substr(1));
+				path = at;
+			}
+		}
+		
 		auto Path = [&](size_t i){ return i < path.size() ? path[i] : 0; };
 
 		const auto stat = state();
@@ -1549,10 +1568,6 @@ struct KeyValue {
 		: key(k), value(v)
 	{
 	}
-	bool operator == (KeyValue const &rhs) const
-	{
-		return key == rhs.key && value == rhs.value;
-	}
 };
 inline void Array::push_back(const Variant &v)
 {
@@ -1716,6 +1731,10 @@ inline bool operator == (Variant const &lhs, Variant const &rhs)
 	return false;
 }
 
+inline bool operator == (KeyValue const &lhs, KeyValue const &rhs)
+{
+	return lhs.key == rhs.key && lhs.value == rhs.value;
+}
 
 
 using std::get;

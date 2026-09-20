@@ -583,6 +583,38 @@ TEST(Json, Json9)
 	}
 }
 
+TEST(Json, Json10)
+{
+	char const *json = R"---(
+{
+	"array": [
+		{
+			"value": 123
+		},
+		456
+	]
+}
+)---";
+	
+	std::vector<double> v;
+	
+	jstream::Reader r(json);
+	while (r.next()) {
+		if (r.match("{array[**")) {
+			r.nest([&](){
+				if (r.match("@{value")) {
+					v.push_back(r.number());
+				} else if (r.is_constant()) {
+					v.push_back(r.number());
+				}
+			});
+		}
+	}
+	ASSERT_EQ(v.size(), 2);
+	EXPECT_EQ(v[0], 123);
+	EXPECT_EQ(v[1], 456);
+}
+
 TEST(Json, Array1)
 {
 	char const *json = R"---(

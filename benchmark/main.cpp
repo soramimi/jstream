@@ -183,11 +183,19 @@ void perform(/*bool validation*/)
 				parsed.config.features.experimental.parameters.gamma.notes.push_back(reader.string());
 			} else if (reader.is_start_object()) {
 				reader.nest();
+#if 0
 				do {
 					if (reader.match("{config{features{experimental{parameters{gamma{notes[{unexpected{values[{nesting{level")) {
 						parsed.config.features.experimental.parameters.gamma.unexpected_deep_nesting_level = reader.number();
 					}
 				} while (reader.next());
+#else
+				do {
+					if (reader.match("@unexpected{values[{nesting{level")) {
+						parsed.config.features.experimental.parameters.gamma.unexpected_deep_nesting_level = reader.number();
+					}
+				} while (reader.next());
+#endif
 			}
 		} else if (reader.match("{config{features{deprecated[*") && reader.is_value()) {
 			parsed.config.features.deprecated.features += var(reader);
@@ -350,7 +358,7 @@ void perform(/*bool validation*/)
 
 int main()
 {
-	int n = 10000;
+	int n = 100000;
 	printf("Parsing JSON %d times...\n", n);
 
 	ElapsedTimer timer;

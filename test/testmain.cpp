@@ -16,26 +16,6 @@ void test_parse_event(char const *json, std::vector<Event> const &expect)
 
 void debug1()
 {
-	char const *json = R"---(
-{
-	"array": {
-		{
-			"value": 123
-		}
-	}
-}
-)---";
-		
-	std::vector<std::string> v;
-	
-	jstream::Reader r(json);
-	while (r.next()) {
-		if (r.match("{array{{*")) {
-			if (r.is_constant()) {
-				v.push_back(r.string());
-			}
-		}
-	}
 }
 
 int main(int argc, char **argv)
@@ -46,6 +26,6 @@ int main(int argc, char **argv)
 	
 	::testing::InitGoogleTest(&argc, argv);
 	int ret = RUN_ALL_TESTS();
-
+	
 	return ret;
 }
