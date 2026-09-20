@@ -228,7 +228,7 @@ dotnet run --project JStream.Benchmark
 
 ## Benchmark
 
-The JStream library includes a comprehensive benchmark that measures parsing performance using complex JSON data. The benchmark parses the same JSON structure as the C++ version, allowing for direct performance comparison.
+The JStream library includes a comprehensive benchmark that measures parsing performance using complex JSON data. The benchmark parses the same JSON structure as the C++ version and performs the same validation, allowing for direct performance comparison.
 
 ```bash
 # Run benchmark with default iterations (100,000)

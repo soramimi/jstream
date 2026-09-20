@@ -228,7 +228,7 @@ go run .
 
 ## Benchmark
 
-The Go port includes a benchmark that parses the same JSON structure as the C++ and C# versions, allowing for direct performance comparison.
+The Go port includes a benchmark that parses the same complex JSON as the C++ benchmark and performs the same validation, allowing for direct performance comparison.
 
 ```bash
 cd jstream-go/benchmark
@@ -241,6 +241,8 @@ Or use the Makefile:
 cd jstream-go
 make benchmark
 ```
+
+The default run parses the JSON 10,000 times.
 
 ## Project Structure
 

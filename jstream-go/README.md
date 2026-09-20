@@ -169,6 +169,10 @@ make benchmark
 make clean  # clean artifacts
 ```
 
+## Benchmark
+
+The benchmark parses the same complex JSON as the C++ benchmark and performs the same validation. The default run parses the JSON 10,000 times.
+
 ## Project Structure
 
 - `reader.go` - JSON parser (`Reader`, `Error`)
