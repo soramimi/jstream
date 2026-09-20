@@ -1,5 +1,17 @@
 
-#include "test.h"
+#include "helper.h"
+#include <gtest/gtest.h>
+
+void test_parse_event(char const *json, std::vector<Event> const &expect)
+{
+	std::vector<Event> actual = parse_to_events(json);
+	
+	ASSERT_EQ(actual.size(), expect.size());
+	for (size_t i = 0; i < actual.size(); i++) {
+		EXPECT_EQ(actual[i], expect[i]);
+	}
+}
+
 
 const char *state_to_string(jstream::StateType state)
 {

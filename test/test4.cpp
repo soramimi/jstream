@@ -1,4 +1,4 @@
-#include "test.h"
+#include "helper.h"
 #include <gtest/gtest.h>
 
 using namespace jstream;

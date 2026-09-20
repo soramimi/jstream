@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -301,6 +302,20 @@ public:
 		std::string what() const { return what_; }
 	};
 private:
+	int peek_next_char() const
+	{
+		if (d.ptr && d.end && d.ptr < d.end) {
+			return (unsigned char)*d.ptr;
+		}
+		if (d.fn_input_calback) {
+			d.fn_input_calback();
+			if (d.ptr && d.end && d.ptr < d.end) {
+				return (unsigned char)*d.ptr;
+			}
+		}
+		return -1;
+	}
+	
 	int scan_space(char const *begin, char const *end)
 	{
 		char const *ptr = begin;
@@ -332,6 +347,16 @@ private:
 			break;
 		}
 		return int(ptr - begin);
+	}
+	
+	void skip_space()
+	{
+		while (1) {
+			int c = peek_next_char();
+			if (c < 0) break;
+			if (!std::isspace(c)) break;
+			d.ptr++;
+		}
 	}
 
 	int parse_symbol(char const *begin, char const *end, std::string *out)
@@ -534,7 +559,7 @@ private:
 				}
 			}
 		}
-		return 0;
+		return 0; // unexpected end of string
 	}
 private:
 	struct StateItem {
@@ -548,6 +573,10 @@ private:
 		}
 	};
 	struct ParserData {
+		bool not_enough_input = false;
+		std::optional<std::vector<char>> input_buffer;
+		std::function<void ()> fn_input_calback;
+		
 		char const *begin = nullptr;
 		char const *end = nullptr;
 		char const *ptr = nullptr;
@@ -653,8 +682,8 @@ private:
 		reset();
 		d = {};
 		d.begin = begin;
+		d.ptr = begin;
 		d.end = end;
-		d.ptr = d.begin;
 	}
 
 	void parse(std::string_view sv)
@@ -669,10 +698,12 @@ private:
 		}
 		parse(ptr, ptr + len);
 	}
-
+	
 	bool _internal_next()
 	{
+		bool not_enough_input = true;
 		while (d.ptr < d.end) {
+			not_enough_input = false;
 			{
 				auto n = scan_space(d.ptr, d.end);;
 				if (n > 0) {
@@ -734,7 +765,11 @@ private:
 					push_state(Null);
 					return true;
 				}
+#if 0
 				d.ptr += scan_space(d.ptr, d.end);
+#else
+				skip_space();
+#endif
 				if (is_value()) {
 					pop_state();
 				}
@@ -781,26 +816,37 @@ private:
 					push_error("unexpected double quote");
 					return false;
 				}
-
+				
 				auto n = parse_string(d.ptr, d.end, &d.string);
+				if (n == 0 || d.ptr + n == d.end) {
+					not_enough_input = true;
+					break;
+				}
 				if (n > 0) {
 					d.ptr += n;
 					d.ptr += scan_space(d.ptr, d.end);
 					if (state() == Key) {
 						//
-					} else if (d.ptr < d.end && *d.ptr == ':') {
-						if (isarray()) {
-							// unusual syntax; "key":"value" in array
-							// e.g. [ "key": "value" ]
-							if (!d.allow_key_in_array) {
-								push_error("unexpected key in array");
-								return false;
-							}
+					} else {
+						int c = peek_next_char();
+						if (c < 0) {
+							not_enough_input = true;
+							break;
 						}
-						d.ptr++;
-						d.key = d.string;
-						push_state(Key);
-						return true;
+						if (c == ':') {
+							if (isarray()) {
+								// unusual syntax; "key":"value" in array
+								// e.g. [ "key": "value" ]
+								if (!d.allow_key_in_array) {
+									push_error("unexpected key in array");
+									return false;
+								}
+							}
+							d.ptr++;
+							d.key = d.string;
+							push_state(Key);
+							return true;
+						}
 					}
 					push_state(String);
 					return true;
@@ -809,47 +855,67 @@ private:
 			if (state() == Key || isarray()) {
 				auto n = parse_number(d.ptr, d.end, &d.number);
 				if (n > 0) {
+					if (n == 0 || d.ptr + n == d.end) {
+						not_enough_input = true;
+						break;
+					}
 					d.string.assign(d.ptr, n);
 					d.ptr += n;
 					push_state(Number);
 					return true;
 				}
-			if (std::isalpha(static_cast<unsigned char>(*d.ptr))) {
-				auto n = parse_symbol(d.ptr, d.end, &d.string);
-				if (n > 0) {
-					if (state() == Key || state() == Comma || state() == StartArray) {
-						d.ptr += n;
-						if (d.string == "false") {
-							push_state(False);
-							return true;
-						}
-						if (d.string == "true") {
-							push_state(True);
-							return true;
-						}
-						if (d.string == "null") {
-							push_state(Null);
-							return true;
+				if (std::isalpha(static_cast<unsigned char>(*d.ptr))) {
+					auto n = parse_symbol(d.ptr, d.end, &d.string);
+					if (n == 0 || d.ptr + n == d.end) {
+						not_enough_input = true;
+						break;
+					}
+					if (n > 0) {
+						if (state() == Key || state() == Comma || state() == StartArray) {
+							d.ptr += n;
+							if (d.string == "false") {
+								push_state(False);
+								return true;
+							}
+							if (d.string == "true") {
+								push_state(True);
+								return true;
+							}
+							if (d.string == "null") {
+								push_state(Null);
+								return true;
+							}
 						}
 					}
 				}
-			}
-		} else if (d.allow_unquoted_key) {
-			auto n = parse_symbol(d.ptr, d.end, &d.string);
-			if (n > 0) {
-				n += scan_space(d.ptr + n, d.end);
-				if (d.ptr[n] == ':') {
-					d.ptr += n + 1;
-					d.key = d.string;
-					push_state(Key);
-					return true;
+			} else if (d.allow_unquoted_key) {
+				auto n = parse_symbol(d.ptr, d.end, &d.string);
+				if (n == 0 || d.ptr + n == d.end) {
+					not_enough_input = true;
+					break;
+				}
+				if (n > 0) {
+					n += scan_space(d.ptr + n, d.end);
+					if (d.ptr[n] == ':') {
+						d.ptr += n + 1;
+						d.key = d.string;
+						push_state(Key);
+						return true;
+					}
 				}
 			}
+			if (!has_error()) {
+				push_error("syntax error");
+			}
+			d.not_enough_input = true;
+			return false;
 		}
-		if (!has_error()) {
-			push_error("syntax error");
-		}
-		break;
+		if (not_enough_input) {
+			d.not_enough_input = true;
+			if (d.fn_input_calback) {
+				d.fn_input_calback();
+			}
+			return false;
 		}
 		return false;
 	}
@@ -860,6 +926,7 @@ private:
 		d->ptr = nullptr;
 	}
 public:
+	Reader() = default;
 	Reader(std::string_view sv)
 	{
 		parse(sv);
@@ -887,7 +954,34 @@ public:
 	}
 	Reader(Reader const &r) = delete;
 	Reader &operator=(Reader const &r) = delete;
-
+	
+	Reader(std::function<void ()> fn_input_calback)
+	{
+		d.fn_input_calback = fn_input_calback;
+	}
+	
+	void input(std::string_view sv)
+	{
+		if (sv.empty()) return;
+		
+		d.not_enough_input = false;
+		
+		std::vector<char> v;
+		size_t n = 0;
+		if (d.ptr && d.end) {
+			n = d.end - d.ptr;
+			if (n > 0) {
+				v.reserve(n + sv.size());
+				v.assign(d.ptr, d.end);
+			}
+		}
+		v.insert(v.end(), sv.begin(), sv.end());
+		d.input_buffer = std::move(v);
+		d.begin = d.input_buffer->data();
+		d.ptr = d.begin;
+		d.end = d.begin + d.input_buffer->size();
+	}
+	
 	void allow_comment(bool allow)
 	{
 		d.allow_comment = allow;
@@ -974,7 +1068,12 @@ public:
 	{
 		return d.errors;
 	}
-
+	
+	bool is_not_enough_input() const
+	{
+		return d.not_enough_input;
+	}
+	
 	bool is_start_object() const
 	{
 		return state() == StartObject;

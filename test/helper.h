@@ -1,5 +1,5 @@
-#ifndef TEST_H
-#define TEST_H
+#ifndef HELPER_H
+#define HELPER_H
 
 #include <string>
 #include <vector>
@@ -123,4 +123,4 @@ struct GoogleAccessToken {
 	}
 };
 
-#endif // TEST_H
+#endif // HELPER_H
