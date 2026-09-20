@@ -285,3 +285,81 @@ TEST(Json, Streaming5)
 	EXPECT_EQ(parsed.age, 10);
 	EXPECT_EQ(parsed.city, "Wonderland");
 }
+
+TEST(Json, StreamingCommentSpanChunks)
+{
+	// Block comment split across two input() calls.
+	{
+		jstream::Reader reader;
+		reader.allow_comment(true);
+		reader.input(R"({"a": /* comm)");
+		reader.input(R"(ent */ 1})");
+		int a = 0;
+		while (reader.next()) {
+			if (reader.match("{a") && reader.isnumber()) {
+				a = (int)reader.number();
+			}
+		}
+		EXPECT_EQ(a, 1);
+		EXPECT_FALSE(reader.has_error());
+	}
+
+	// Line comment split across two input() calls.
+	{
+		jstream::Reader reader;
+		reader.allow_comment(true);
+		reader.input("{\"a\": 1 // first lin");
+		reader.input("e\n,\"b\":2}\n");
+		int a = 0, b = 0;
+		while (reader.next()) {
+			if (reader.match("{a") && reader.isnumber()) {
+				a = (int)reader.number();
+			} else if (reader.match("{b") && reader.isnumber()) {
+				b = (int)reader.number();
+			}
+		}
+		EXPECT_EQ(a, 1);
+		EXPECT_EQ(b, 2);
+		EXPECT_FALSE(reader.has_error());
+	}
+}
+
+TEST(Json, MalformedNumbers)
+{
+	auto parse = [](char const *json) {
+		jstream::Reader reader(json);
+		while (reader.next()) { }
+		return reader.has_error();
+	};
+
+	EXPECT_TRUE(parse(R"({"a": 1.2.3})"));
+	EXPECT_TRUE(parse(R"({"a": 1e})"));
+	EXPECT_TRUE(parse(R"({"a": ++1})"));
+	EXPECT_TRUE(parse(R"({"a": 1e10e20})"));
+	EXPECT_TRUE(parse(R"({"a": -})"));
+	EXPECT_TRUE(parse(R"({"a": +1})"));
+
+	// Valid numbers must still parse.
+	auto parse_value = [](char const *json) {
+		jstream::Reader reader(json);
+		double value = 0;
+		while (reader.next()) {
+			if (reader.match("{a") && reader.isnumber()) {
+				value = reader.number();
+			}
+		}
+		return value;
+	};
+
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 0})"), 0);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": -0})"), 0);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 123})"), 123);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": -123})"), -123);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1.5})"), 1.5);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": -1.5})"), -1.5);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1e10})"), 1e10);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1E10})"), 1E10);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1e+10})"), 1e+10);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1e-10})"), 1e-10);
+	EXPECT_DOUBLE_EQ(parse_value(R"({"a": 1.5e3})"), 1.5e3);
+}

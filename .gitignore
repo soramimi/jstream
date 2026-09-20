@@ -14,3 +14,4 @@ bin/
 UpgradeLog.htm
 Backup/
 jstream
+.qmake.stash

@@ -356,18 +356,22 @@ private:
 	bool skip_space()
 	{
 		bool ret = false;
-		char comment = 0;
 		while (1) {
 			int c = peek_next_char();
-			if (c < 0) break;
-			if (comment != 0) {
-				if (comment == '*') {
+			if (c < 0) {
+				if (d.comment_state != 0) {
+					d.not_enough_input = true;
+				}
+				break;
+			}
+			if (d.comment_state != 0) {
+				if (d.comment_state == '*') {
 					if (c == '/') {
-						comment = 0;
+						d.comment_state = 0;
 					}
-				} else if (comment == '/') {
+				} else if (d.comment_state == '/') {
 					if (c == '\n' || c == '\r') {
-						comment = 0;
+						d.comment_state = 0;
 					}
 				}
 			} else if (!std::isspace(c)) {
@@ -378,7 +382,7 @@ private:
 					if (d.ptr + 1 < d.end) {
 						char t = d.ptr[1];
 						if (t == '*' || t == '/') {
-							comment = t;
+							d.comment_state = t;
 							d.ptr += 2;
 							ret = true;
 							continue;
@@ -408,6 +412,50 @@ private:
 		}
 		out->clear();
 		return 0;
+	}
+
+	static bool validate_json_number(char const *start, char const *end, char const **out_end)
+	{
+		char const *p = start;
+		if (p < end && *p == '-') {
+			p++;
+		}
+		if (p >= end) {
+			return false;
+		}
+		if (*p == '0') {
+			p++;
+		} else if (*p >= '1' && *p <= '9') {
+			p++;
+			while (p < end && std::isdigit(static_cast<unsigned char>(*p))) {
+				p++;
+			}
+		} else {
+			return false;
+		}
+		if (p < end && *p == '.') {
+			p++;
+			if (p >= end || !std::isdigit(static_cast<unsigned char>(*p))) {
+				return false;
+			}
+			while (p < end && std::isdigit(static_cast<unsigned char>(*p))) {
+				p++;
+			}
+		}
+		if (p < end && (*p == 'e' || *p == 'E')) {
+			p++;
+			if (p < end && (*p == '+' || *p == '-')) {
+				p++;
+			}
+			if (p >= end || !std::isdigit(static_cast<unsigned char>(*p))) {
+				return false;
+			}
+			while (p < end && std::isdigit(static_cast<unsigned char>(*p))) {
+				p++;
+			}
+		}
+		*out_end = p;
+		return true;
 	}
 
 	int parse_number(char const *begin, char const *end, double *out)
@@ -468,15 +516,11 @@ private:
 		}
 
 		char const *start = ptr;
-		while (ptr < end) {
-			char c = *ptr;
-			if (std::isdigit(static_cast<unsigned char>(c)) || c == '.' || c == '+' || c == '-' || c == 'e' || c == 'E') {
-				ptr++;
-			} else {
-				break;
-			}
+		char const *num_end = nullptr;
+		if (!validate_json_number(start, end, &num_end)) {
+			return 0;
 		}
-		if (start == ptr) return 0;
+		ptr = num_end;
 
 #if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
 		// std::from_chars for double is available: parse without copying.
@@ -620,6 +664,7 @@ private:
 		std::string string;
 		double number = 0;
 		bool is_array = false;
+		char comment_state = 0; // 0=none, '/'=line comment, '*'=block comment
 		bool allow_comment = false;
 		bool allow_ambiguous_comma = false;
 		bool allow_unquoted_key = false;

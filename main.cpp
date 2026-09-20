@@ -1,6 +1,6 @@
 
 #include <jstream.h>
-#include "test/test.h"
+#include "test/helper.h"
 #include <stdio.h>
 #include <assert.h>
 

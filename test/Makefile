@@ -2,7 +2,7 @@
 NAME := myapp
 PROJDIR := .
 
-SRCS := test.cpp test1.cpp test2.cpp test3.cpp test4.cpp testmain.cpp
+SRCS := helper.cpp main.cpp test1.cpp test2.cpp test3.cpp test4.cpp test5.cpp
 LIBS := -lgtest
 
 CC := gcc

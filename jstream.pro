@@ -8,7 +8,9 @@ DESTDIR = $$PWD
 
 INCLUDEPATH += include
 
-SOURCES += main.cpp test/test.cpp
+LIBS += -lgtest
+
+SOURCES += main.cpp test/helper.cpp
 
 HEADERS += \
 	include/jstream.h
