@@ -290,6 +290,8 @@ enum StateType {
 	EndArray,
 	String,
 	Number,
+	//
+	EndDocument,
 };
 
 class Reader {
@@ -302,9 +304,13 @@ public:
 		std::string what() const { return what_; }
 	};
 private:
+	bool is_streaming_input_mode() const
+	{
+		return (bool)d.fn_input_calback;
+	}
 	void need_input() const
 	{
-		if (d.fn_input_calback) {
+		if (is_streaming_input_mode()) {
 			d.fn_input_calback();
 		}
 	}
@@ -949,13 +955,18 @@ private:
 			d.not_enough_input = true;
 			return false;
 		}
-		if (not_enough_input) {
-			d.not_enough_input = true;
-			if (d.fn_input_calback) {
-				d.fn_input_calback();
-			}
+		
+		if ((state() == EndObject || state() == EndArray) && d.depth.empty()) {
+			push_state(EndDocument);
 			return false;
 		}
+		
+		if (not_enough_input) {
+			d.not_enough_input = true;
+			need_input();
+			return false;
+		}
+		
 		return false;
 	}
 	static void _init(ParserData *d)
@@ -1087,7 +1098,18 @@ public:
 			d.nest_stack.pop_back();
 			hold();
 		}
+		if (is_streaming_input_mode() && !is_not_enough_input()) {
+			if (state() != EndDocument) {
+				return true;
+			}
+		}
 		return false;
+	}
+	void next_document()
+	{
+		if (state() == EndDocument) {
+			d.states.clear();
+		}
 	}
 
 	StateType state() const

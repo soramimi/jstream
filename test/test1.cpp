@@ -68,6 +68,7 @@ TEST(Json, Json2)
 	
 	{
 		jstream::Reader reader(json);
+		reader.allow_ambiguous_comma(false); // do not allow trailing comma
 		while (reader.next()) {
 			if (reader.match("{name")) {
 				parsed.name = reader.string();
@@ -105,7 +106,7 @@ TEST(Json, Json2)
 				parsed.address.zip = reader.string();
 			}
 		}
-		EXPECT_FALSE(reader.has_error());
+		EXPECT_FALSE(reader.has_error()); // no error due to trailing comma
 		EXPECT_EQ(get<std::string>(parsed.name), "John");
 		EXPECT_EQ(get<double>(parsed.age), 30);
 		EXPECT_EQ(get<std::string>(parsed.city), "New York");
