@@ -1729,6 +1729,9 @@ struct Array;
 struct KeyValue;
 typedef std::vector<KeyValue> _Object;
 typedef std::variant<null_t, bool, double, std::string, _Object, Array> Variant;
+
+inline bool operator == (jstream::Variant const &lhs, jstream::Variant const &rhs);
+
 struct Array {
 	std::vector<Variant> a;
 	size_t size() const
@@ -1772,6 +1775,7 @@ struct KeyValue {
 		: key(k), value(v)
 	{
 	}
+	bool operator == (jstream::KeyValue const &rhs) const;
 };
 inline void Array::push_back(const Variant &v)
 {
@@ -1792,6 +1796,7 @@ struct VariantRef {
 		return *var;
 	}
 };
+
 struct Object {
 	_Object *p;
 	Object() : p(nullptr)
@@ -1924,7 +1929,21 @@ static inline Variant var(jstream::Reader const &reader)
 	return null;
 }
 
-inline bool operator == (Variant const &lhs, Variant const &rhs)
+using std::get;
+
+} // namespace jstream
+
+inline bool jstream::KeyValue::operator == (jstream::KeyValue const &rhs) const
+{
+	return this->key == rhs.key && this->value == rhs.value;
+}
+
+inline bool operator == (jstream::KeyValue const &lhs, jstream::KeyValue const &rhs)
+{
+	return lhs.operator == (rhs);
+}
+
+inline bool operator == (jstream::Variant const &lhs, jstream::Variant const &rhs)
 {
 	if (lhs.index() != rhs.index()) return false;
 	switch (lhs.index()) {
@@ -1932,20 +1951,10 @@ inline bool operator == (Variant const &lhs, Variant const &rhs)
 	case 1: return std::get<bool>(lhs) == std::get<bool>(rhs);
 	case 2: return std::get<double>(lhs) == std::get<double>(rhs);
 	case 3: return std::get<std::string>(lhs) == std::get<std::string>(rhs);
-	case 4: return std::get<_Object>(lhs) == std::get<_Object>(rhs);
-	case 5: return std::get<Array>(lhs).a == std::get<Array>(rhs).a;
+	case 4: return std::get<jstream::_Object>(lhs) == std::get<jstream::_Object>(rhs);
+	case 5: return std::get<jstream::Array>(lhs).a == std::get<jstream::Array>(rhs).a;
 	}
 	return false;
 }
-
-inline bool operator == (KeyValue const &lhs, KeyValue const &rhs)
-{
-	return lhs.key == rhs.key && lhs.value == rhs.value;
-}
-
-
-using std::get;
-
-} // namespace jstream
 
 #endif // JSTREAM_H_
