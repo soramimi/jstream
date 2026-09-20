@@ -1549,6 +1549,10 @@ struct KeyValue {
 		: key(k), value(v)
 	{
 	}
+	bool operator == (KeyValue const &rhs) const
+	{
+		return key == rhs.key && value == rhs.value;
+	}
 };
 inline void Array::push_back(const Variant &v)
 {
@@ -1697,6 +1701,22 @@ static inline Variant var(jstream::Reader const &reader)
 	}
 	return null;
 }
+
+inline bool operator == (Variant const &lhs, Variant const &rhs)
+{
+	if (lhs.index() != rhs.index()) return false;
+	switch (lhs.index()) {
+	case 0: return true; // null
+	case 1: return std::get<bool>(lhs) == std::get<bool>(rhs);
+	case 2: return std::get<double>(lhs) == std::get<double>(rhs);
+	case 3: return std::get<std::string>(lhs) == std::get<std::string>(rhs);
+	case 4: return std::get<_Object>(lhs) == std::get<_Object>(rhs);
+	case 5: return std::get<Array>(lhs).a == std::get<Array>(rhs).a;
+	}
+	return false;
+}
+
+
 
 using std::get;
 

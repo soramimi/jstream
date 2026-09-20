@@ -4,8 +4,10 @@
 
 using namespace jstream;
 
-void perform()
+void perform(/*bool validation*/)
 {
+	const bool validation = true;
+	
 	char const *json = R"---(
 {
 	"meta": {
@@ -85,7 +87,7 @@ void perform()
 	}
 }
 )---";
-
+	
 	struct ParsedData {
 		struct Meta {
 			Variant id;
@@ -157,7 +159,7 @@ void perform()
 			} types;
 		} misc;
 	} parsed;
-
+	
 	jstream::Reader reader(json);
 	while (reader.next()) {
 		if (reader.match("{meta{id")) {
@@ -177,7 +179,7 @@ void perform()
 		} else if (reader.match("{config{features{experimental{parameters{gamma{enabled")) {
 			parsed.config.features.experimental.parameters.gamma.enabled = reader.istrue();
 		} else if (reader.match("{config{features{experimental{parameters{gamma{notes[**")) {
-			if (reader.is_value()) {
+			if (reader.is_constant()) {
 				parsed.config.features.experimental.parameters.gamma.notes.push_back(reader.string());
 			} else if (reader.is_start_object()) {
 				reader.nest();
@@ -200,7 +202,7 @@ void perform()
 				} else if (reader.match("{data[{user{roles[*")) {
 					reader.nest();
 					do {
-						if (reader.is_value()) {
+						if (reader.is_constant()) {
 							data.user.roles.push_back(var(reader));
 						} else if (reader.is_start_object()) {
 							reader.nest();
@@ -282,6 +284,67 @@ void perform()
 		} else if (reader.match("{misc{types{object{nested{again{why")) {
 			parsed.misc.types.object = var(reader);
 		}
+	}
+	
+	if (validation) {
+#define ASSERT_EQ(a, b) if ((a) != (b)) { printf("ASSERT_EQ failed: %s != %s (#%d)\n", #a, #b, __LINE__); exit(1); }
+#define EXPECT_EQ(a, b) if ((a) != (b)) { printf("EXPECT_EQ failed: %s != %s (#%d)\n", #a, #b, __LINE__); exit(1); }
+#define EXPECT_NEAR(a, b, tol) if (std::abs((a) - (b)) > (tol)) { printf("EXPECT_NEAR failed: %s != %s within %f (#%d)\n", #a, #b, tol, __LINE__); exit(1); }
+		
+		EXPECT_EQ(get<std::string>(parsed.meta.id), "9f3c1a2b-d3e7-43d2-b3a5-92024ad58e3a");
+		EXPECT_EQ(get<std::string>(parsed.meta.timestamp), "2025-04-22T12:34:56Z");
+		ASSERT_EQ(parsed.meta.flags.size(), 7);
+		EXPECT_EQ(get<bool>(parsed.meta.flags[0]), true);
+		EXPECT_EQ(get<bool>(parsed.meta.flags[1]), false);
+		EXPECT_EQ(get<null_t>(parsed.meta.flags[2]), null);
+		EXPECT_EQ(get<std::string>(parsed.meta.flags[3]), "yes");
+		EXPECT_EQ(get<double>(parsed.meta.flags[4]), 0);
+		EXPECT_EQ(get<double>(parsed.meta.flags[5]), 1.0);
+		EXPECT_EQ(get<std::string>(parsed.meta.flags[6]), "0.0");
+		EXPECT_EQ(get<std::string>(parsed.config.version), "v1.0.0-beta+exp.sha.5114f85");
+		EXPECT_EQ(get<bool>(parsed.config.features.experimental.enabled), true);
+		EXPECT_EQ(get<double>(parsed.config.features.experimental.parameters.alpha), 0.001);
+		EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.value), "∞");
+		EXPECT_EQ(get<bool>(parsed.config.features.experimental.parameters.gamma.enabled), false);
+		EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.notes.size(), 2);
+		EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.notes[0]), "Supports Unicode ✓");
+		EXPECT_EQ(get<std::string>(parsed.config.features.experimental.parameters.gamma.notes[1]), "Handles emoji 😊");
+		EXPECT_EQ(parsed.config.features.experimental.parameters.gamma.unexpected_deep_nesting_level, 6);
+		EXPECT_EQ(parsed.config.features.deprecated.features.size(), 3);
+		EXPECT_EQ(get<std::string>(parsed.config.features.deprecated.features[0]), "featureX");
+		EXPECT_EQ(get<std::string>(parsed.config.features.deprecated.features[1]), "featureY");
+		EXPECT_EQ(get<null_t>(parsed.config.features.deprecated.features[2]), null);
+		ASSERT_EQ(parsed.data.size(), 2);
+		EXPECT_EQ(get<double>(parsed.data[0].user.id), 1);
+		EXPECT_EQ(get<std::string>(parsed.data[0].user.name), "Alice");
+		ASSERT_EQ(parsed.data[0].user.roles.size(), 4);
+		EXPECT_EQ(arr(parsed.data[0].user.roles).get<std::string>(0), "admin");
+		EXPECT_EQ(arr(parsed.data[0].user.roles).get<std::string>(1), "user");
+		EXPECT_EQ(obj(arr(parsed.data[0].user.roles)[2]).get<std::string>("type"), "custom");
+		EXPECT_EQ(obj(arr(parsed.data[0].user.roles)[3]).get<std::string>("name"), "α-β");
+		EXPECT_EQ(parsed.data[0].user.active, true);
+		ASSERT_EQ(parsed.data[0].history.size(), 2);
+		EXPECT_EQ(parsed.data[0].history[0].action, "login");
+		EXPECT_EQ(parsed.data[0].history[1].action, "update");
+		EXPECT_EQ(get<std::string>(parsed.data[1].user.profile.bio), "👨‍💻 Coder. \"Escape\\Sequence\" tester.");
+		EXPECT_EQ(get<null_t>(parsed.data[1].user.profile.links.homepage), null);
+		ASSERT_EQ(parsed.data[1].user.profile.links.social.size(), 2);
+		ASSERT_EQ(parsed.data[1].user.profile.links.social[0].type, "twitter");
+		ASSERT_EQ(parsed.data[1].user.profile.links.social[0].url, "https://twitter.com/bob");
+		ASSERT_EQ(parsed.data[1].user.profile.links.social[1].type, "matrix");
+		ASSERT_EQ(parsed.data[1].user.profile.links.social[1].url, "matrix:r/room:server");
+		ASSERT_EQ(obj(parsed.misc.emptyObj).size(), 0);
+		EXPECT_EQ(arr(parsed.misc.emptyArr).size(), 0);
+		EXPECT_EQ(get<double>(parsed.misc.types.int_), 42);
+		EXPECT_NEAR(get<double>(parsed.misc.types.float_), 3.14159, 1e-10);
+		EXPECT_EQ(get<std::string>(parsed.misc.types.string), "test");
+		EXPECT_EQ(get<bool>(parsed.misc.types.boolean), false);
+		EXPECT_EQ(get<null_t>(parsed.misc.types.null), null);
+		ASSERT_EQ(parsed.misc.types.array.size(), 3);
+		EXPECT_EQ(get<double>(parsed.misc.types.array[0]), 1);
+		EXPECT_EQ(get<double>(parsed.misc.types.array[1]), 2);
+		EXPECT_EQ(get<double>(parsed.misc.types.array[2]), 3);
+		EXPECT_EQ(get<std::string>(parsed.misc.types.object), "not");
 	}
 }
 
