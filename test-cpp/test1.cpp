@@ -6,6 +6,45 @@
 
 using namespace jstream;
 
+TEST(Json, API0)
+{
+	auto json_source = []()-> std::string {
+		char const *json = R"---(
+{
+	"name": "John",
+	"age": 30,
+	"city": "New York"
+}
+)---";
+		return json;
+	};
+	
+	struct ParsedData {
+		std::string name;
+		int age = 0;
+		std::string city;
+		struct Address {
+			std::string street;
+			std::string zip;
+		} address;
+	} parsed;
+	
+	// Reader(std::string &&s) で構築されることを期待するテスト
+	// もし Reader(std::string_view sv) が呼ばれると、json_source() の返す std::string が破棄されるため、Reader 内部のポインタが無効になり、テストが失敗する。
+	jstream::Reader reader(json_source());
+	while (reader.next()) {
+		if (reader.match("{name")) {
+			parsed.name = reader.string();
+		} else if (reader.match("{age")) {
+			parsed.age = reader.number();
+		} else if (reader.match("{city")) {
+			parsed.city = reader.string();
+		}
+	}
+	EXPECT_EQ(parsed.name, "John");
+	EXPECT_EQ(parsed.age, 30);
+	EXPECT_EQ(parsed.city, "New York");
+}
 
 TEST(Json, Json0)
 {
